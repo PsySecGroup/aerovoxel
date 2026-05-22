@@ -1,0 +1,65 @@
+scene:
+  name: cloudy
+  duration: 5
+  fps: 24
+
+environment:
+  time_of_day: 0.55
+  fog_density: 0.0
+  cloud_density: 0.8
+  rain_density: 0.0
+  bug_density: 0.0
+
+clouds:
+  - start: [-400, 1900, 520]
+    end:   [-300, 1950, 518]   # very slow drift
+    radius: 280
+    height: 70
+    opacity: 0.35
+    puffs: 14
+    seed: 42
+
+  - start: [ 200, 2100, 540]
+    end:   [ 260, 2130, 538]
+    radius: 220
+    height: 55
+    opacity: 0.3
+    puffs: 10
+    seed: 7
+
+  - start: [ 600, 1800, 510]
+    end:   [ 640, 1820, 509]
+    radius: 180
+    height: 45
+    opacity: 0.25
+    puffs: 8
+    seed: 13
+
+objects:
+  - start: [-800, 2000, 500]
+    end:   [ 800, 2000, 480]
+    velocity: 120
+    radius: 80
+    color: [0.85, 0.85, 0.85]
+
+  - start: [ 400, 1800, 620]
+    end:   [-600, 2200, 600]
+    velocity: 80
+    radius: 60
+    color: [0.8, 0.82, 0.85]
+
+cameras:
+  - position: [0, -500, 100]
+    yaw: 0
+    pitch: 10
+    fov: 60
+
+  - position: [300, -400, 120]
+    yaw: -20
+    pitch: 12
+    fov: 55
+
+  - position: [-300, -450, 90]
+    yaw: 18
+    pitch: 8
+    fov: 65

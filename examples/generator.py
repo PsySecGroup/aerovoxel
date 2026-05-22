@@ -1,18 +1,4 @@
 #!/usr/bin/env python3
-"""
-scene_generator.py
-
-Generates synthetic multi-camera frames from a YAML scene config and writes
-a metadata.json compatible with ray_voxel.
-
-Usage:
-    python src/scene_generator.py scenes/sunny_day.yaml
-
-Output:
-    output/<scene_name>/image_CAM_frame_FRAME.png
-    output/<scene_name>/metadata.json
-"""
-
 import sys
 import json
 import math
@@ -32,7 +18,6 @@ def load_config(path):
 
 
 def yaw_pitch_to_direction(yaw_deg, pitch_deg):
-    """Convert yaw/pitch angles to a unit direction vector."""
     yaw   = math.radians(yaw_deg)
     pitch = math.radians(pitch_deg)
     dx = math.cos(pitch) * math.sin(yaw)
@@ -90,7 +75,6 @@ def sky_color(time_of_day):
 
 
 def sun_position(time_of_day):
-    """Arc the sun across the sky. Returns (x, y, z) for the light source."""
     angle = math.pi * (time_of_day * 2 - 0.5)
     x = 50000 * math.cos(angle)
     z = 50000 * math.sin(angle)
@@ -98,19 +82,51 @@ def sun_position(time_of_day):
 
 
 def sun_intensity(time_of_day):
-    """Bright at noon, dim at dawn/dusk, off at night."""
     return max(0.0, math.sin(math.pi * time_of_day)) * 1.5
+
+
+# ---------------------------------------------------------------------------
+# Cloud rendering
+# ---------------------------------------------------------------------------
+
+def render_clouds(plotter, clouds, t):
+    """
+    Render each cloud as a cluster of overlapping semi-transparent spheres.
+    Each cloud drifts slowly from its start to end position over the scene duration.
+    A fixed seed per cloud ensures the cluster shape is stable across frames.
+    """
+    for cloud in clouds:
+        center = object_position(cloud, t)
+        radius  = cloud.get('radius', 200)
+        height  = cloud.get('height', 60)
+        opacity = cloud.get('opacity', 0.35)
+        n_puffs = cloud.get('puffs', 12)
+        seed    = cloud.get('seed', 0)
+
+        rng = np.random.default_rng(seed)
+
+        # Generate puff offsets within a flattened ellipsoid (wide, short)
+        offsets = rng.uniform(-1, 1, size=(n_puffs, 3))
+        offsets[:, 0] *= radius          # x spread
+        offsets[:, 1] *= radius          # y spread
+        offsets[:, 2] *= height          # z spread (flattened)
+
+        # Puff radii vary for a natural look
+        puff_radii = rng.uniform(radius * 0.3, radius * 0.6, size=n_puffs)
+
+        for offset, puff_radius in zip(offsets, puff_radii):
+            puff_center = (center + offset).tolist()
+            puff = pv.Sphere(radius=puff_radius, center=puff_center,
+                             theta_resolution=10, phi_resolution=10)
+            plotter.add_mesh(puff, color='white', opacity=opacity,
+                             smooth_shading=True)
 
 
 # ---------------------------------------------------------------------------
 # Scene builder
 # ---------------------------------------------------------------------------
 
-def build_scene(plotter, cfg, frame_objects):
-    """
-    Populate a plotter with environment and objects for a given frame.
-    frame_objects: list of (position, obj_config) tuples.
-    """
+def build_scene(plotter, cfg, frame_objects, t):
     env = cfg['environment']
     tod = env.get('time_of_day', 0.5)
 
@@ -121,20 +137,25 @@ def build_scene(plotter, cfg, frame_objects):
     intensity = sun_intensity(tod)
     if intensity > 0:
         sun = pv.Light(position=sun_pos, focal_point=(0, 0, 0),
-        light_type='scene light')
+                       light_type='scene light')
         sun.intensity = intensity
         plotter.add_light(sun)
 
-    # Ambient fill so shadowed areas aren't pitch black
     ambient = pv.Light(light_type='headlight')
     ambient.intensity = 0.3
     plotter.add_light(ambient)
 
+    # Clouds
+    clouds = cfg.get('clouds', [])
+    if clouds:
+        render_clouds(plotter, clouds, t)
+
+    # Objects
     for pos, obj in frame_objects:
         radius = obj.get('radius', 8)
         color  = obj.get('color', [1.0, 1.0, 1.0])
         mesh   = pv.Sphere(radius=radius, center=pos.tolist(),
-            theta_resolution=16, phi_resolution=16)
+                           theta_resolution=16, phi_resolution=16)
         plotter.add_mesh(mesh, color=color, smooth_shading=True)
 
 
@@ -176,11 +197,11 @@ def main(config_path, output_dir=None):
 
     out_dir  = Path(output_dir) if output_dir else Path('output') / scene['name']
     out_dir.mkdir(parents=True, exist_ok=True)
+    (out_dir / "frames").mkdir(parents=True, exist_ok=True)
 
     metadata = []
     total    = n_frames * len(cameras)
     done     = 0
-    (out_dir / "frames").mkdir(parents=True, exist_ok=True)
 
     for frame_idx in range(n_frames):
         t = frame_idx / max(n_frames - 1, 1)
@@ -191,7 +212,7 @@ def main(config_path, output_dir=None):
             plotter = pv.Plotter(off_screen=True, window_size=[1920, 1080])
             plotter.enable_anti_aliasing('ssaa')
 
-            build_scene(plotter, cfg, frame_objects)
+            build_scene(plotter, cfg, frame_objects, t)
             apply_camera(plotter, cam)
 
             img_name = f"camera_{cam_idx:03d}_frame_{frame_idx:03d}.png"
@@ -224,6 +245,7 @@ def main(config_path, output_dir=None):
     print(f"[Done] metadata -> {meta_path}")
     print(f"\nTo build voxel grid:")
     print(f"  ./ray_voxel {meta_path} {out_dir} voxel_grid.bin")
+
 
 def generate(example_dir):
     main(
