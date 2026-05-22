@@ -1,5 +1,10 @@
 #!/bin/bash
-source activate.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_ROOT"
+
+source "$SCRIPT_DIR/activate.sh"
+
 pip install --upgrade pip
 pip install numpy opencv-python matplotlib pybind11 setuptools astropy PyQt5
 python setup.py build_ext --inplace

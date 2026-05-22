@@ -28,7 +28,9 @@ from mathutils import Vector, Euler
 # === USER-TWEAKABLE CONSTANTS =================================================
 TEST_MOVE = False
 NEW_PHOTOS          = True                     # • flip to False to resume
-OUTPUT_DIR          = r"yourpath"
+OUTPUT_DIR          = r"yourpath"   # ← SET THIS before running
+if OUTPUT_DIR == r"yourpath":
+    raise RuntimeError("OUTPUT_DIR has not been set. Edit blenderrenderscript.py and point it at your render output folder.")
 RES_X, RES_Y        = 1920, 1080              # render resolution
 N_CAMERAS           = 3000
 if TEST_MOVE :

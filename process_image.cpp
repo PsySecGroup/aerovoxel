@@ -157,15 +157,16 @@ void process_image_cpp(
     double y_min = 0, y_max = 0;
     double z_min = 0, z_max = 0;
 
-    // We only declare voxel_grid_mutable inside the if block if voxel_grid is provided
-    // This avoids the need for a default constructor for unchecked_mutable_reference.
-    py::detail::unchecked_mutable_reference<double, 3>* voxel_grid_mutable_ptr = nullptr;
+    // Use a raw pointer to the voxel grid buffer instead of mutable_unchecked.
+    // mutable_unchecked returns a stack-local object; taking its address and
+    // using it after the enclosing scope is UB (dangling pointer → segfault).
+    // mutable_data() returns the underlying buffer pointer, which is stable for
+    // the lifetime of the numpy array and safe to use with OpenMP atomics.
+    double* voxel_data = nullptr;
 
     if (voxel_grid_provided)
     {
-        // Get a mutable reference to the voxel grid
-        auto voxel_grid_mutable = voxel_grid.mutable_unchecked<3>();
-        voxel_grid_mutable_ptr = &voxel_grid_mutable;
+        voxel_data = static_cast<double*>(voxel_grid.mutable_data());
 
         // Extract voxel grid dimensions and extents
         voxel_grid_size = {
@@ -316,9 +317,6 @@ void process_image_cpp(
                 // If we have a voxel grid, cast rays into it and update voxel brightness
                 if (voxel_grid_provided)
                 {
-                    // Safe to use voxel_grid_mutable_ptr now because voxel_grid_provided is true
-                    auto &voxel_grid_mutable = *voxel_grid_mutable_ptr; // Reference to the voxel grid
-
                     // Ray casting into voxel grid
                     double step_size = max_distance / num_steps;
 
@@ -339,6 +337,10 @@ void process_image_cpp(
                             int s_entry = static_cast<int>(t_entry / step_size);
                             int s_exit = static_cast<int>(t_exit / step_size);
 
+                            pybind11::ssize_t nx = voxel_grid_size[0];
+                            pybind11::ssize_t ny = voxel_grid_size[1];
+                            pybind11::ssize_t nz = voxel_grid_size[2];
+
                             for (int s = s_entry; s <= s_exit; ++s)
                             {
                                 double d = s * step_size;
@@ -353,8 +355,10 @@ void process_image_cpp(
 
                                 if (x_idx >= 0)
                                 {
+                                    // Flat row-major index: [x, y, z] -> x*ny*nz + y*nz + z
+                                    pybind11::ssize_t flat = x_idx * ny * nz + y_idx * nz + z_idx;
                                     #pragma omp atomic
-                                    voxel_grid_mutable(x_idx, y_idx, z_idx) += brightness;
+                                    voxel_data[flat] += brightness;
                                 }
                             }
                         }

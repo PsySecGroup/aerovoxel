@@ -1,38 +1,38 @@
 #!/usr/bin/env python3
 """
 Watch-dog that restarts Blender until every entry in metadata.json
-is "rendered": true.  Now hardened against path-quoting issues and
+is "rendered": true.  Hardened against path-quoting issues and
 third-party add-ons crashing on start-up.
 """
 
 import json, os, subprocess, sys, tempfile, time
 from pathlib import Path
-import textwrap, json as _json  # for safe string literal
+import textwrap, json as _json
 
 # ─────────────────────────── USER SETTINGS ────────────────────────────
 BLENDER_EXE = r"C:\Program Files\Blender Foundation\Blender 3.6\blender.exe"
-BLEND_FILE  = r"C:\Users\youruser\Desktop\birdge.blend"
-JOB_SCRIPT  = r"C:\Users\youruser\Desktop\birdge.py"
+BLEND_FILE  = r"C:\Users\youruser\Desktop\yourscene.blend"
 
-OUTPUT_DIR  = r"C:\Users\Rhoady\Desktop\pet projects\relcams40"
+# Point this at blender/blenderrenderscript.py inside your project folder
+JOB_SCRIPT  = r"C:\Users\youruser\Desktop\aerovoxel\blender\blenderrenderscript.py"
+
+OUTPUT_DIR  = r"C:\Users\youruser\Desktop\aerovoxel\output"
 META_PATH   = Path(OUTPUT_DIR) / "metadata.json"
 
 CRASH_SLEEP = 5.0        # seconds between retries
 # ───────────────────────────────────────────────────────────────────────
 
-# ----------------------------------------------------------------------
 def all_frames_done(meta_file: Path) -> bool:
     if not meta_file.exists():
         return False
     with meta_file.open("r") as fh:
         return all(m.get("rendered") for m in json.load(fh))
 
-# ----------------------------------------------------------------------
 def make_wrapper() -> Path:
     wrapper = Path(tempfile.gettempdir()) / "run_render_job_once.py"
 
-    safe_job  = _json.dumps(JOB_SCRIPT)          # proper quoting
-    safe_json = _json.dumps(str(META_PATH))      # ← new
+    safe_job  = _json.dumps(JOB_SCRIPT)
+    safe_json = _json.dumps(str(META_PATH))
 
     wrapper.write_text(textwrap.dedent(f"""
         import importlib.util, types, pathlib, sys, os
@@ -43,7 +43,7 @@ def make_wrapper() -> Path:
         if spec and spec.loader:
             job = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(job)
-        else:                                  # very old Python fallback
+        else:
             job = types.ModuleType("job")
             exec(job_path.read_text(), job.__dict__)
         sys.modules["job"] = job
@@ -58,17 +58,15 @@ def make_wrapper() -> Path:
 
     return wrapper
 
-# ----------------------------------------------------------------------
 def launch_blender(wrapper: Path) -> int:
     cmd = [
         BLENDER_EXE,
-        "--factory-startup",          # <-- disables all add-ons
+        "--factory-startup",          # disables all add-ons
         "-b", BLEND_FILE,
         "--python", str(wrapper)
     ]
     return subprocess.run(cmd).returncode
 
-# ----------------------------------------------------------------------
 def main():
     print("▶  Blender render watchdog started.")
     wrapper = make_wrapper()
@@ -88,6 +86,5 @@ def main():
         print(f"⚠  Blender exited (code {rc}). Will retry in {CRASH_SLEEP}s …")
         time.sleep(CRASH_SLEEP)
 
-# ----------------------------------------------------------------------
 if __name__ == "__main__":
     main()

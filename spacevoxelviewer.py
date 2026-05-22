@@ -312,22 +312,6 @@ def main():
         pointing_directions.append(p_dir)
         observation_times.append(obs_time)
 
-    # === TEMPORARY BYPASS OF C++ BACKEND TO TEST VISUALIZATION ===
-    # # For each FITS file once, we simulate what the C++ backend should have written
-    # for i, (fits_file, obs_time) in enumerate(fits_files_sorted):
-    #     # Fake Earth positions moving along an orbital path
-    #     earth_positions.append([1.496e11 * np.cos(i*0.05), 1.496e11 * np.sin(i*0.05), 0.0])
-    #     pointing_directions.append([0.0, 1.0, 0.0])
-    #     observation_times.append(obs_time)
-
-    # # Manually paint a synthetic 3D line directly into the voxel grid array 
-    # # to test the threshold and plotting layers
-    # nx, ny, nz = voxel_grid.shape
-    # for i in range(min(nx, ny, nz)):
-    #     # Draws a bright diagonal line through the 3D voxel cube
-    #     voxel_grid[i, i, i] = 500.0  
-    # =============================================================
-
     # Create a background model (optional step)
     # In this example, we simply show the result after one pass.
     background_model = celestial_sphere_texture / len(fits_files_sorted)
@@ -336,10 +320,10 @@ def main():
     voxel_grid_avg = voxel_grid / len(fits_files_sorted)
 
     # Threshold for significant voxels
-    # if np.any(voxel_grid_avg > 0):
-    #     threshold = np.percentile(voxel_grid_avg[voxel_grid_avg > 0], brightness_threshold_percentile)
-    # else:
-    threshold = 0
+    if np.any(voxel_grid_avg > 0):
+        threshold = np.percentile(voxel_grid_avg[voxel_grid_avg > 0], brightness_threshold_percentile)
+    else:
+        threshold = 0
 
     object_voxels = voxel_grid_avg > threshold
     x_indices, y_indices, z_indices = np.nonzero(object_voxels)
