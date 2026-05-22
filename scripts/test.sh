@@ -5,4 +5,4 @@ cd "$PROJECT_ROOT"
 
 source "$SCRIPT_DIR/activate.sh"
 
-rm -f fits/* && python generate_synthetic_frames.py && python spacevoxelviewer.py
+rm -f fits/* && python src/generate_synthetic_frames.py && python src/spacevoxelviewer.py

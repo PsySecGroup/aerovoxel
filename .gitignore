@@ -24,3 +24,6 @@ fits/*
 .DS_Store
 .vscode/
 .idea/
+
+images
+!images/.gitkeep

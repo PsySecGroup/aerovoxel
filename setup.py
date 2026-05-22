@@ -4,10 +4,9 @@ import pybind11
 import sys
 import os
 
-# Custom build_ext to add compiler-specific flags
 class BuildExt(build_ext):
     c_opts = {
-        'msvc': ['/O2', '/openmp'],  # Enable optimization and OpenMP for MSVC
+        'msvc': ['/O2', '/openmp'],
         'unix': ['-O3', '-fopenmp'],
     }
     l_opts = {
@@ -27,9 +26,9 @@ class BuildExt(build_ext):
 ext_modules = [
     Extension(
         'process_image_cpp',
-        ['process_image.cpp'],
+        ['src/process_image.cpp'],
         include_dirs=[
-            pybind11.get_include(),  # Use pybind11's function to get the include path
+            pybind11.get_include(),
         ],
         language='c++'
     ),
@@ -40,4 +39,9 @@ setup(
     version='0.0.1',
     ext_modules=ext_modules,
     cmdclass={'build_ext': BuildExt},
+    options={
+        'build_ext': {
+            'build_lib': 'build',   # .so goes to build/ instead of in-place
+        }
+    },
 )

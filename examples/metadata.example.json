@@ -1,0 +1,62 @@
+[
+  {
+    "camera_index": 0,
+    "frame_index": 0,
+    "camera_position": [0.0, -5000.0, 500.0],
+    "yaw": 0.0,
+    "pitch": 5.0,
+    "roll": 0.0,
+    "fov_degrees": 60.0,
+    "image_file": "image_000_frame_000.png"
+  },
+  {
+    "camera_index": 0,
+    "frame_index": 1,
+    "camera_position": [0.0, -5000.0, 500.0],
+    "yaw": 0.0,
+    "pitch": 5.0,
+    "roll": 0.0,
+    "fov_degrees": 60.0,
+    "image_file": "image_000_frame_001.png"
+  },
+  {
+    "camera_index": 1,
+    "frame_index": 0,
+    "camera_position": [3000.0, -4000.0, 600.0],
+    "yaw": -30.0,
+    "pitch": 8.0,
+    "roll": 0.0,
+    "fov_degrees": 55.0,
+    "image_file": "image_001_frame_000.png"
+  },
+  {
+    "camera_index": 1,
+    "frame_index": 1,
+    "camera_position": [3000.0, -4000.0, 600.0],
+    "yaw": -30.0,
+    "pitch": 8.0,
+    "roll": 0.0,
+    "fov_degrees": 55.0,
+    "image_file": "image_001_frame_001.png"
+  },
+  {
+    "camera_index": 2,
+    "frame_index": 0,
+    "camera_position": [-3000.0, -4500.0, 400.0],
+    "yaw": 25.0,
+    "pitch": 3.0,
+    "roll": 0.0,
+    "fov_degrees": 65.0,
+    "image_file": "image_002_frame_000.png"
+  },
+  {
+    "camera_index": 2,
+    "frame_index": 1,
+    "camera_position": [-3000.0, -4500.0, 400.0],
+    "yaw": 25.0,
+    "pitch": 3.0,
+    "roll": 0.0,
+    "fov_degrees": 65.0,
+    "image_file": "image_002_frame_001.png"
+  }
+]
