@@ -337,7 +337,6 @@ void process_image_cpp(
                             int s_entry = static_cast<int>(t_entry / step_size);
                             int s_exit = static_cast<int>(t_exit / step_size);
 
-                            pybind11::ssize_t nx = voxel_grid_size[0];
                             pybind11::ssize_t ny = voxel_grid_size[1];
                             pybind11::ssize_t nz = voxel_grid_size[2];
 
@@ -373,22 +372,22 @@ void process_image_cpp(
 PYBIND11_MODULE(process_image_cpp, m) {
     m.doc() = "C++ implementation of the process_image function";
     m.def("process_image_cpp", &process_image_cpp, "Process image and update voxel grid in C++",
-          py::arg("image"),
-          py::arg("earth_position"),
-          py::arg("pointing_direction"),
-          py::arg("fov"),
-          py::arg("image_width"),
-          py::arg("image_height"),
-          py::arg("voxel_grid"),
-          py::arg("voxel_grid_extent"),
-          py::arg("max_distance"),
-          py::arg("num_steps"),
-          py::arg("celestial_sphere_texture"),
-          py::arg("center_ra_rad"),
-          py::arg("center_dec_rad"),
-          py::arg("angular_width_rad"),
-          py::arg("angular_height_rad"),
-          py::arg("update_celestial_sphere"),
-          py::arg("perform_background_subtraction")
+        py::arg("image"),
+        py::arg("earth_position"),
+        py::arg("pointing_direction"),
+        py::arg("fov"),
+        py::arg("image_width"),
+        py::arg("image_height"),
+        py::arg("voxel_grid"),
+        py::arg("voxel_grid_extent"),
+        py::arg("max_distance"),
+        py::arg("num_steps"),
+        py::arg("celestial_sphere_texture"),
+        py::arg("center_ra_rad"),
+        py::arg("center_dec_rad"),
+        py::arg("angular_width_rad"),
+        py::arg("angular_height_rad"),
+        py::arg("update_celestial_sphere"),
+        py::arg("perform_background_subtraction")
     );
 }
