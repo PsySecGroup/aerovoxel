@@ -1,0 +1,26 @@
+# Local Virtual Environment
+venv/
+.env
+
+# Project Specific Output and Build Folders
+__pycache__/
+build/
+fits/*
+!fits/.gitkeep
+
+# Compiled C++ Binaries / Shared Libraries
+*.so
+*.o
+*.a
+
+# Python distribution / tools
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# System / IDE specific files
+.DS_Store
+.vscode/
+.idea/
