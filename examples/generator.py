@@ -226,14 +226,9 @@ def main(config_path, output_dir=None):
     print(f"  ./ray_voxel {meta_path} {out_dir} voxel_grid.bin")
 
 def generate(example_dir):
-    example_dir  = Path(example_dir).resolve()
-    project_root = example_dir.parent.parent
-    sys.path.insert(0, str(project_root / 'src'))
-
-    from scene_generator import main
     main(
-        config_path = example_dir / 'scene.yml',
-        output_dir  = example_dir,
+        config_path = Path(example_dir).resolve() / 'scene.yml',
+        output_dir  = Path(example_dir).resolve(),
     )
 
 

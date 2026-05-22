@@ -35,12 +35,14 @@ if [ ! -f "$META" ] || [ "$FRAME_COUNT" -eq 0 ]; then
 fi
 
 # ── ray_voxel ───────────────────────────────────────────────────────────────
-echo "[run] Running ray_voxel..."
-"$PROJECT_ROOT/build/ray_voxel" "$META" "$EXAMPLE_DIR/frames" "$EXAMPLE_DIR/voxel_grid.bin"
-if [ $? -ne 0 ]; then
-    echo "[run] ray_voxel failed, aborting."
-    exit 1
+if [ ! -f "$EXAMPLE_DIR/voxel_grid.bin" ]; then
+    echo "[run] Running ray_voxel..."
+    "$PROJECT_ROOT/build/ray_voxel" "$META" "$EXAMPLE_DIR/frames" "$EXAMPLE_DIR/voxel_grid.bin"
+    if [ $? -ne 0 ]; then
+        echo "[run] ray_voxel failed, aborting."
+        exit 1
+    fi
 fi
 
 # ── viewer ───────────────────────────────────────────────────────────────────
-python src/voxelmotionviewer.py "$EXAMPLE_DIR/voxel_grid.bin"
+python src/viewVoxelMotion.py "$EXAMPLE_DIR/voxel_grid.bin"
