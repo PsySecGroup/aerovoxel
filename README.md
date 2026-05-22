@@ -1,4 +1,4 @@
-# Aerovoxel
+# AeroVoxel
 
 Projects motion of pixels to a voxel
 

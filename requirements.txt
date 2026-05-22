@@ -5,3 +5,5 @@ pybind11
 setuptools
 astropy
 PyQt5
+pyvista
+pyyaml

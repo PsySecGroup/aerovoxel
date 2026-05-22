@@ -1,0 +1,40 @@
+scene:
+  name: afternoon
+  duration: 5
+  fps: 24
+
+environment:
+  time_of_day: 0.65
+  fog_density: 0.0
+  cloud_density: 0.0
+  rain_density: 0.0
+  bug_density: 0.0
+
+objects:
+  - start: [-800, 2000, 500]
+    end:   [ 800, 2000, 480]
+    velocity: 120
+    radius: 80        # needs to be large relative to the 2500-unit camera distance
+    color: [1.0, 1.0, 1.0]
+
+  - start: [ 400, 1800, 620]
+    end:   [-600, 2200, 600]
+    velocity: 80
+    radius: 60
+    color: [0.9, 0.95, 1.0]
+
+cameras:
+  - position: [0, -500, 100]
+    yaw: 0
+    pitch: 10
+    fov: 60
+
+  - position: [300, -400, 120]
+    yaw: -20
+    pitch: 12
+    fov: 55
+
+  - position: [-300, -450, 90]
+    yaw: 18
+    pitch: 8
+    fov: 65

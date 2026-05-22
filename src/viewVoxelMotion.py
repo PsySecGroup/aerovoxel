@@ -19,6 +19,7 @@ Description:
 """
 
 import os
+import sys
 import re
 import math
 import numpy as np
@@ -160,7 +161,8 @@ def get_next_image_index(folder, prefix="voxel_", suffix=".png"):
 
 def main():
     # 1) Load the voxel grid
-    voxel_grid, vox_size = load_voxel_grid("voxel_grid.bin")
+    bin_path = sys.argv[1] if len(sys.argv) > 1 else "voxel_grid.bin"
+    voxel_grid, vox_size = load_voxel_grid(bin_path)
     print("Loaded voxel grid:", voxel_grid.shape, "voxel_size=", vox_size)
     print("Max voxel value:", voxel_grid.max())
 

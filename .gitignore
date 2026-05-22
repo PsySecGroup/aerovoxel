@@ -27,3 +27,6 @@ fits/*
 
 images
 !images/.gitkeep
+
+**/frames/*.png
+voxel_grid.bin
