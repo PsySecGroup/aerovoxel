@@ -10,6 +10,5 @@ pip install -r requirements.txt
 
 source "$SCRIPT_DIR/recompile.sh"
 
-python setup.py install
 python -c 'import process_image_cpp; print("SUCCESS: The C++ voxel tracker is working")'
 mkdir -p fits
