@@ -86,6 +86,43 @@ def sun_intensity(time_of_day):
 
 
 # ---------------------------------------------------------------------------
+# Fog rendering
+# ---------------------------------------------------------------------------
+
+def render_fog(plotter, fog_density, objects, seed=99):
+    """
+    Render fog as a field of scattered semi-transparent spheres filling the
+    object zone. A box would show its interior faces as walls when the camera
+    is inside — scattered spheres give true volumetric opacity instead.
+    fog_density (0-1) controls both sphere count and opacity.
+    """
+    if fog_density <= 0:
+        return
+
+    # Derive bounds from object positions with generous padding
+    positions = [np.array(obj['start']) for obj in objects] + \
+                [np.array(obj['end'])   for obj in objects]
+    positions = np.array(positions)
+
+    padding = 600
+    lo = positions.min(axis=0) - padding
+    hi = positions.max(axis=0) + padding
+
+    rng      = np.random.default_rng(seed)
+    n_puffs  = int(fog_density * 120)          # more spheres = denser fog
+    opacity  = fog_density * 0.08              # each sphere very faint; they accumulate
+    radius   = (hi - lo).mean() * 0.12        # puff size relative to scene volume
+
+    centers = rng.uniform(lo, hi, size=(n_puffs, 3))
+
+    for center in centers:
+        puff = pv.Sphere(radius=radius, center=center.tolist(),
+                         theta_resolution=6, phi_resolution=6)
+        plotter.add_mesh(puff, color='white', opacity=opacity,
+                         smooth_shading=False)
+
+
+# ---------------------------------------------------------------------------
 # Cloud rendering
 # ---------------------------------------------------------------------------
 
@@ -96,7 +133,7 @@ def render_clouds(plotter, clouds, t):
     A fixed seed per cloud ensures the cluster shape is stable across frames.
     """
     for cloud in clouds:
-        center = object_position(cloud, t)
+        center  = object_position(cloud, t)
         radius  = cloud.get('radius', 200)
         height  = cloud.get('height', 60)
         opacity = cloud.get('opacity', 0.35)
@@ -105,13 +142,11 @@ def render_clouds(plotter, clouds, t):
 
         rng = np.random.default_rng(seed)
 
-        # Generate puff offsets within a flattened ellipsoid (wide, short)
-        offsets = rng.uniform(-1, 1, size=(n_puffs, 3))
-        offsets[:, 0] *= radius          # x spread
-        offsets[:, 1] *= radius          # y spread
-        offsets[:, 2] *= height          # z spread (flattened)
+        offsets    = rng.uniform(-1, 1, size=(n_puffs, 3))
+        offsets[:, 0] *= radius
+        offsets[:, 1] *= radius
+        offsets[:, 2] *= height
 
-        # Puff radii vary for a natural look
         puff_radii = rng.uniform(radius * 0.3, radius * 0.6, size=n_puffs)
 
         for offset, puff_radius in zip(offsets, puff_radii):
@@ -120,6 +155,51 @@ def render_clouds(plotter, clouds, t):
                              theta_resolution=10, phi_resolution=10)
             plotter.add_mesh(puff, color='white', opacity=opacity,
                              smooth_shading=True)
+
+
+
+# ---------------------------------------------------------------------------
+# Rain rendering
+# ---------------------------------------------------------------------------
+
+def render_rain(plotter, rain_density, objects, t, seed=77):
+    """
+    Render rain as falling vertical streaks (thin cylinders).
+    X/Y positions are fixed per drop (same column every frame).
+    Z position advances with t and wraps so drops fall continuously.
+    rain_density (0-1) controls drop count and opacity.
+    """
+    if rain_density <= 0:
+        return
+
+    positions = [np.array(obj['start']) for obj in objects] + \
+                [np.array(obj['end'])   for obj in objects]
+    positions = np.array(positions)
+
+    padding = 400
+    lo = positions.min(axis=0) - padding
+    hi = positions.max(axis=0) + padding
+
+    rng       = np.random.default_rng(seed)
+    n_drops   = int(rain_density * 300)
+    opacity   = 0.3 + rain_density * 0.3
+    length    = (hi[2] - lo[2]) * 0.06   # streak length ~6% of z range
+    radius    = length * 0.04            # thin relative to length
+    fall_span = hi[2] - lo[2]
+
+    # Fixed x/y per drop, random z phase so they start spread out
+    xy      = rng.uniform([lo[0], lo[1]], [hi[0], hi[1]], size=(n_drops, 2))
+    z_phase = rng.uniform(0, 1, size=n_drops)
+
+    for i in range(n_drops):
+        # subtract t so drops fall downward (-z), speed=6 = 6 full passes per scene
+        z = lo[2] + ((z_phase[i] - t * 6) % 1.0) * fall_span
+        center = [xy[i, 0], xy[i, 1], z]
+        streak = pv.Cylinder(center=center, direction=(0, 0, 1),
+                             radius=radius, height=length,
+                             resolution=4, capping=False)
+        plotter.add_mesh(streak, color='lightblue', opacity=opacity,
+                         smooth_shading=False)
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +224,16 @@ def build_scene(plotter, cfg, frame_objects, t):
     ambient = pv.Light(light_type='headlight')
     ambient.intensity = 0.3
     plotter.add_light(ambient)
+
+    # Fog
+    fog_density = env.get('fog_density', 0.0)
+    if fog_density > 0:
+        render_fog(plotter, fog_density, cfg['objects'])
+
+    # Rain
+    rain_density = env.get('rain_density', 0.0)
+    if rain_density > 0:
+        render_rain(plotter, rain_density, cfg['objects'], t)
 
     # Clouds
     clouds = cfg.get('clouds', [])

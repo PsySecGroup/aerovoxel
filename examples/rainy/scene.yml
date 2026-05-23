@@ -1,0 +1,40 @@
+scene:
+  name: rainy
+  duration: 5
+  fps: 24
+
+environment:
+  time_of_day: 0.42   # overcast grey morning
+  fog_density: 0.2    # light mist accompanying the rain
+  cloud_density: 0.0
+  rain_density: 0.75
+  bug_density: 0.0
+
+objects:
+  - start: [-800, 2000, 500]
+    end:   [ 800, 2000, 480]
+    velocity: 120
+    radius: 80
+    color: [0.7, 0.72, 0.75]
+
+  - start: [ 400, 1800, 620]
+    end:   [-600, 2200, 600]
+    velocity: 80
+    radius: 60
+    color: [0.65, 0.68, 0.72]
+
+cameras:
+  - position: [0, -500, 100]
+    yaw: 0
+    pitch: 10
+    fov: 60
+
+  - position: [300, -400, 120]
+    yaw: -20
+    pitch: 12
+    fov: 55
+
+  - position: [-300, -450, 90]
+    yaw: 18
+    pitch: 8
+    fov: 65
