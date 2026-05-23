@@ -117,9 +117,9 @@ def render_fog(plotter, fog_density, objects, seed=99):
 
     for center in centers:
         puff = pv.Sphere(radius=radius, center=center.tolist(),
-                         theta_resolution=6, phi_resolution=6)
+            theta_resolution=6, phi_resolution=6)
         plotter.add_mesh(puff, color='white', opacity=opacity,
-                         smooth_shading=False)
+            smooth_shading=False)
 
 
 # ---------------------------------------------------------------------------
@@ -152,9 +152,9 @@ def render_clouds(plotter, clouds, t):
         for offset, puff_radius in zip(offsets, puff_radii):
             puff_center = (center + offset).tolist()
             puff = pv.Sphere(radius=puff_radius, center=puff_center,
-                             theta_resolution=10, phi_resolution=10)
+                theta_resolution=10, phi_resolution=10)
             plotter.add_mesh(puff, color='white', opacity=opacity,
-                             smooth_shading=True)
+                smooth_shading=True)
 
 
 
@@ -196,10 +196,10 @@ def render_rain(plotter, rain_density, objects, t, seed=77):
         z = lo[2] + ((z_phase[i] - t * 6) % 1.0) * fall_span
         center = [xy[i, 0], xy[i, 1], z]
         streak = pv.Cylinder(center=center, direction=(0, 0, 1),
-                             radius=radius, height=length,
-                             resolution=4, capping=False)
+            radius=radius, height=length,
+            resolution=4, capping=False)
         plotter.add_mesh(streak, color='lightblue', opacity=opacity,
-                         smooth_shading=False)
+            smooth_shading=False)
 
 
 # ---------------------------------------------------------------------------
@@ -217,7 +217,7 @@ def build_scene(plotter, cfg, frame_objects, t):
     intensity = sun_intensity(tod)
     if intensity > 0:
         sun = pv.Light(position=sun_pos, focal_point=(0, 0, 0),
-                       light_type='scene light')
+            light_type='scene light')
         sun.intensity = intensity
         plotter.add_light(sun)
 
@@ -245,7 +245,7 @@ def build_scene(plotter, cfg, frame_objects, t):
         radius = obj.get('radius', 8)
         color  = obj.get('color', [1.0, 1.0, 1.0])
         mesh   = pv.Sphere(radius=radius, center=pos.tolist(),
-                           theta_resolution=16, phi_resolution=16)
+            theta_resolution=16, phi_resolution=16)
         plotter.add_mesh(mesh, color=color, smooth_shading=True)
 
 

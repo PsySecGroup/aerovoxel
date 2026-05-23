@@ -13,9 +13,9 @@ Description:
     3) Extracts top percentile of brightness.
     4) Applies an additional Euler rotation to the entire cloud (user-defined).
     5) Displays them interactively in a PyVista window,
-       so you can orbit, zoom, and pan with the mouse.
+        so you can orbit, zoom, and pan with the mouse.
     6) On closing the window, saves a 1920×1080 screenshot named 'voxel_####.png'
-       in a 'screenshots/' folder, so you can keep a history of runs.
+        in a 'screenshots/' folder, so you can keep a history of runs.
 """
 
 import os
@@ -29,12 +29,12 @@ import pyvista as pv
 def load_voxel_grid(filename):
     """
     Reads a voxel grid from a binary file with the following layout:
-      1) int32: N (size of the NxNxN grid)
-      2) float32: voxel_size
-      3) N*N*N float32: the voxel data in row-major order
+        1) int32: N (size of the NxNxN grid)
+        2) float32: voxel_size
+        3) N*N*N float32: the voxel data in row-major order
     Returns:
-       voxel_grid (N x N x N),
-       voxel_size
+        voxel_grid (N x N x N),
+        voxel_size
     """
     with open(filename, "rb") as f:
         # read N

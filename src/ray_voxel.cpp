@@ -11,9 +11,6 @@
  *   6) Save the voxel grid to a .bin file
  ***************************************************/
 
-
-
-
 #include <iostream>
 #include <fstream>
 #include <cmath>
@@ -282,12 +279,16 @@ std::vector<RayStep> cast_ray_into_grid(
     steps.reserve(64);
 
     float half_size = 0.5f * (N * voxel_size);
-    Vec3 grid_min = { grid_center.x - half_size,
-                      grid_center.y - half_size,
-                      grid_center.z - half_size };
-    Vec3 grid_max = { grid_center.x + half_size,
-                      grid_center.y + half_size,
-                      grid_center.z + half_size };
+    Vec3 grid_min = {
+        grid_center.x - half_size,
+        grid_center.y - half_size,
+        grid_center.z - half_size
+    };
+    Vec3 grid_max = {
+        grid_center.x + half_size,
+        grid_center.y + half_size,
+        grid_center.z + half_size
+    };
 
     float t_min = 0.f;
     float t_max = std::numeric_limits<float>::infinity();

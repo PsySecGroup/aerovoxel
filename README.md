@@ -22,3 +22,7 @@ Projects motion of pixels to a voxel
 ./scripts/install.sh
 . scripts/activate.s
 ```
+
+## Todo
+
+Figure out PixelationDecensorer.py
