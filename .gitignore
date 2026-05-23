@@ -31,3 +31,5 @@ images
 **/frames/*.png
 voxel_grid.bin
 screenshots/
+metadata.json
+voxel_grid_multicam.json

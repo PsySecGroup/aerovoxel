@@ -13,9 +13,9 @@ Description:
     3) Extracts top percentile of brightness.
     4) Applies an additional Euler rotation to the entire cloud (user-defined).
     5) Displays them interactively in a PyVista window,
-        so you can orbit, zoom, and pan with the mouse.
+       so you can orbit, zoom, and pan with the mouse.
     6) On closing the window, saves a 1920×1080 screenshot named 'voxel_####.png'
-        in a 'screenshots/' folder, so you can keep a history of runs.
+       in a 'screenshots/' folder, so you can keep a history of runs.
 """
 
 import os
@@ -28,28 +28,41 @@ import pyvista as pv
 
 def load_voxel_grid(filename):
     """
-    Reads a voxel grid from a binary file with the following layout:
-        1) int32: N (size of the NxNxN grid)
-        2) float32: voxel_size
-        3) N*N*N float32: the voxel data in row-major order
+    Reads a sparse voxel grid from a binary file with the following layout:
+      1) int32:   N (resolution; grid is N x N x N voxels)
+      2) float32: voxel_size (side length of one voxel in world units)
+      3) int32:   count (number of active/non-zero voxel entries)
+      4) count * (int32 flat_index, float32 value) pairs
+
+    The flat index encodes (ix, iy, iz) as:  flat_index = ix*N*N + iy*N + iz
+    Reconstruct with:
+        ix = flat_index // (N*N)
+        iy = (flat_index // N) % N
+        iz = flat_index % N
+
     Returns:
-        voxel_grid (N x N x N),
-        voxel_size
+       voxel_grid (N x N x N numpy float32 array, dense, zero-initialised),
+       voxel_size
     """
     with open(filename, "rb") as f:
-        # read N
-        raw = f.read(4)
-        N = np.frombuffer(raw, dtype=np.int32)[0]
+        N          = np.frombuffer(f.read(4), dtype=np.int32)[0]
+        voxel_size = np.frombuffer(f.read(4), dtype=np.float32)[0]
+        count      = np.frombuffer(f.read(4), dtype=np.int32)[0]
 
-        # read voxel_size
-        raw = f.read(4)
-        voxel_size = np.frombuffer(raw, dtype=np.float32)[0]
+        # Read all (index, value) pairs in one shot for efficiency.
+        # Each entry is 8 bytes: 4-byte int index + 4-byte float value.
+        raw = np.frombuffer(f.read(count * 8), dtype=np.int32)
 
-        # read the voxel data
-        count = N*N*N
-        raw = f.read(count*4)
-        data = np.frombuffer(raw, dtype=np.float32)
-        voxel_grid = data.reshape((N, N, N))
+    # raw alternates [index0, value0_bits, index1, value1_bits, ...]
+    indices = raw[0::2]
+    values  = raw[1::2].view(np.float32)
+
+    # Reconstruct the dense N x N x N grid and scatter sparse values into it.
+    voxel_grid = np.zeros((N, N, N), dtype=np.float32)
+    ix = indices // (N * N)
+    iy = (indices // N) % N
+    iz = indices % N
+    voxel_grid[ix, iy, iz] = values
 
     return voxel_grid, voxel_size
 

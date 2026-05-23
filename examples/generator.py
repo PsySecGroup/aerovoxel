@@ -117,9 +117,9 @@ def render_fog(plotter, fog_density, objects, seed=99):
 
     for center in centers:
         puff = pv.Sphere(radius=radius, center=center.tolist(),
-            theta_resolution=6, phi_resolution=6)
+                         theta_resolution=6, phi_resolution=6)
         plotter.add_mesh(puff, color='white', opacity=opacity,
-            smooth_shading=False)
+                         smooth_shading=False)
 
 
 # ---------------------------------------------------------------------------
@@ -152,9 +152,9 @@ def render_clouds(plotter, clouds, t):
         for offset, puff_radius in zip(offsets, puff_radii):
             puff_center = (center + offset).tolist()
             puff = pv.Sphere(radius=puff_radius, center=puff_center,
-                theta_resolution=10, phi_resolution=10)
+                             theta_resolution=10, phi_resolution=10)
             plotter.add_mesh(puff, color='white', opacity=opacity,
-                smooth_shading=True)
+                             smooth_shading=True)
 
 
 
@@ -196,10 +196,10 @@ def render_rain(plotter, rain_density, objects, t, seed=77):
         z = lo[2] + ((z_phase[i] - t * 6) % 1.0) * fall_span
         center = [xy[i, 0], xy[i, 1], z]
         streak = pv.Cylinder(center=center, direction=(0, 0, 1),
-            radius=radius, height=length,
-            resolution=4, capping=False)
+                             radius=radius, height=length,
+                             resolution=4, capping=False)
         plotter.add_mesh(streak, color='lightblue', opacity=opacity,
-            smooth_shading=False)
+                         smooth_shading=False)
 
 
 # ---------------------------------------------------------------------------
@@ -217,7 +217,7 @@ def build_scene(plotter, cfg, frame_objects, t):
     intensity = sun_intensity(tod)
     if intensity > 0:
         sun = pv.Light(position=sun_pos, focal_point=(0, 0, 0),
-            light_type='scene light')
+                       light_type='scene light')
         sun.intensity = intensity
         plotter.add_light(sun)
 
@@ -245,7 +245,7 @@ def build_scene(plotter, cfg, frame_objects, t):
         radius = obj.get('radius', 8)
         color  = obj.get('color', [1.0, 1.0, 1.0])
         mesh   = pv.Sphere(radius=radius, center=pos.tolist(),
-            theta_resolution=16, phi_resolution=16)
+                           theta_resolution=16, phi_resolution=16)
         plotter.add_mesh(mesh, color=color, smooth_shading=True)
 
 
@@ -287,31 +287,27 @@ def main(config_path, output_dir=None):
 
     out_dir  = Path(output_dir) if output_dir else Path('output') / scene['name']
     out_dir.mkdir(parents=True, exist_ok=True)
-    (out_dir / "frames").mkdir(parents=True, exist_ok=True)
+    frames_dir = out_dir / "frames"
+    frames_dir.mkdir(parents=True, exist_ok=True)
 
-    metadata = []
-    total    = n_frames * len(cameras)
-    done     = 0
-
-    for frame_idx in range(n_frames):
-        t = frame_idx / max(n_frames - 1, 1)
-
-        frame_objects = [(object_position(obj, t), obj) for obj in objects]
-
-        for cam_idx, cam in enumerate(cameras):
-            plotter = pv.Plotter(off_screen=True, window_size=[1920, 1080])
-            plotter.enable_anti_aliasing('ssaa')
-
-            build_scene(plotter, cfg, frame_objects, t)
-            apply_camera(plotter, cam)
-
-            img_name = f"camera_{cam_idx:03d}_frame_{frame_idx:03d}.png"
-            img_path = out_dir / "frames" / img_name
-
-            plotter.show(auto_close=False)
-            plotter.screenshot(str(img_path))
-            plotter.close()
-
+    # If the frames directory already contains PNGs, skip rendering entirely
+    # and rebuild metadata from the existing files instead. This avoids
+    # re-running the expensive PyVista render pass on every invocation.
+    existing_pngs = sorted(frames_dir.glob("*.png"))
+    if existing_pngs:
+        print(f"[Skip] {len(existing_pngs)} PNG(s) already exist in {frames_dir} — skipping render.")
+        metadata = []
+        for png in existing_pngs:
+            # Recover cam/frame indices from the filename convention:
+            # camera_<cam_idx:03d>_frame_<frame_idx:03d>.png
+            parts = png.stem.split("_")  # ['camera', '000', 'frame', '000']
+            try:
+                cam_idx   = int(parts[1])
+                frame_idx = int(parts[3])
+                cam       = cameras[cam_idx]
+            except (IndexError, ValueError):
+                print(f"  [Warn] Cannot parse indices from filename: {png.name} — skipping.")
+                continue
             metadata.append({
                 "camera_index":    cam_idx,
                 "frame_index":     frame_idx,
@@ -320,22 +316,54 @@ def main(config_path, output_dir=None):
                 "pitch":           cam.get('pitch', 0),
                 "roll":            cam.get('roll',  0),
                 "fov_degrees":     cam.get('fov',   60),
-                "image_file":      img_name,
-                "rendered":        True
+                "image_file":      png.name,
+                "rendered":        False
             })
+    else:
+        metadata = []
+        total    = n_frames * len(cameras)
+        done     = 0
 
-            done += 1
-            print(f"[{done}/{total}] cam {cam_idx:03d} frame {frame_idx:03d} -> {img_name}")
+        for frame_idx in range(n_frames):
+            t = frame_idx / max(n_frames - 1, 1)
+
+            frame_objects = [(object_position(obj, t), obj) for obj in objects]
+
+            for cam_idx, cam in enumerate(cameras):
+                plotter = pv.Plotter(off_screen=True, window_size=[1920, 1080])
+                plotter.enable_anti_aliasing('ssaa')
+
+                build_scene(plotter, cfg, frame_objects, t)
+                apply_camera(plotter, cam)
+
+                img_name = f"camera_{cam_idx:03d}_frame_{frame_idx:03d}.png"
+                img_path = frames_dir / img_name
+
+                plotter.show(auto_close=False)
+                plotter.screenshot(str(img_path))
+                plotter.close()
+
+                metadata.append({
+                    "camera_index":    cam_idx,
+                    "frame_index":     frame_idx,
+                    "camera_position": cam['position'],
+                    "yaw":             cam.get('yaw',   0),
+                    "pitch":           cam.get('pitch', 0),
+                    "roll":            cam.get('roll',  0),
+                    "fov_degrees":     cam.get('fov',   60),
+                    "image_file":      img_name,
+                    "rendered":        True
+                })
+
+                done += 1
+                print(f"[{done}/{total}] cam {cam_idx:03d} frame {frame_idx:03d} -> {img_name}")
 
     meta_path = out_dir / 'metadata.json'
     with open(meta_path, 'w') as f:
         json.dump(metadata, f, indent=2)
 
-    print(f"\n[Done] {done} frames -> {out_dir}")
+    print(f"\n[Done] {len(metadata)} frames -> {out_dir}")
     print(f"[Done] metadata -> {meta_path}")
-    print(f"\nTo build voxel grid:")
-    print(f"  ./ray_voxel {meta_path} {out_dir} voxel_grid.bin")
-
 
 def generate(example_dir):
     main(
