@@ -1,0 +1,33 @@
+{
+  "_description": "Mixed camera quality — per-camera overrides for a rig where cameras have different sensor quality or placement. Camera 0 is clean (low threshold), camera 1 is noisy (high threshold), camera 2 is distant and subsampled. Adjust camera indices and values to match your actual rig.",
+  "grid": {
+    "resolution": 500,
+    "voxel_size": 6.0,
+    "center": "auto"
+  },
+  "motion": {
+    "pixel_diff_threshold": 2.0,
+    "attenuation_coefficient": 0.1
+  },
+  "ray": {
+    "max_steps": 0,
+    "frame_stride": 1
+  },
+  "clustering": {
+    "min_corroborating_cameras": 2,
+    "noise_floor_percentile": 0.90,
+    "merge_radius": -1
+  },
+  "cameras": {
+    "0": {
+      "pixel_diff_threshold": 1.0
+    },
+    "1": {
+      "pixel_diff_threshold": 10.0
+    },
+    "2": {
+      "pixel_diff_threshold": 3.0,
+      "frame_stride": 3
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "_description": "Sensitive detection — very low motion threshold to catch slow-moving or distant objects that produce subtle pixel changes. Expect significantly more false positives; pair with strict clustering to filter them out.",
+  "grid": {
+    "resolution": 500,
+    "voxel_size": 6.0,
+    "center": "auto"
+  },
+  "motion": {
+    "pixel_diff_threshold": 0.5,
+    "attenuation_coefficient": 0.1
+  },
+  "ray": {
+    "max_steps": 0,
+    "frame_stride": 1
+  },
+  "clustering": {
+    "min_corroborating_cameras": 3,
+    "noise_floor_percentile": 0.97,
+    "merge_radius": -1
+  },
+  "cameras": {}
+}

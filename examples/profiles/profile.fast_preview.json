@@ -1,0 +1,22 @@
+{
+  "_description": "Fast preview — coarser voxels, wide frame stride, early ray termination. Processes roughly 1/4 the frames and 1/4 the ray depth of the baseline. Good for iterating on scene setup before a full run.",
+  "grid": {
+    "resolution": 200,
+    "voxel_size": 15.0,
+    "center": "auto"
+  },
+  "motion": {
+    "pixel_diff_threshold": 3.0,
+    "attenuation_coefficient": 0.1
+  },
+  "ray": {
+    "max_steps": 80,
+    "frame_stride": 4
+  },
+  "clustering": {
+    "min_corroborating_cameras": 2,
+    "noise_floor_percentile": 0.85,
+    "merge_radius": -1
+  },
+  "cameras": {}
+}

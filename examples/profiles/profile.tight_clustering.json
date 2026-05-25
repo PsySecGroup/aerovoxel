@@ -1,0 +1,22 @@
+{
+  "_description": "Tight clustering — small merge radius keeps nearby but distinct objects as separate clusters rather than merging them into one. Use when the scene has multiple objects in close proximity that need to be tracked individually.",
+  "grid": {
+    "resolution": 500,
+    "voxel_size": 6.0,
+    "center": "auto"
+  },
+  "motion": {
+    "pixel_diff_threshold": 2.0,
+    "attenuation_coefficient": 0.1
+  },
+  "ray": {
+    "max_steps": 0,
+    "frame_stride": 1
+  },
+  "clustering": {
+    "min_corroborating_cameras": 2,
+    "noise_floor_percentile": 0.90,
+    "merge_radius": 6.0
+  },
+  "cameras": {}
+}

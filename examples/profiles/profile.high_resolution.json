@@ -1,0 +1,22 @@
+{
+  "_description": "High resolution — smaller voxels, finer spatial detail. Expect ~8x more active voxels and proportionally more memory. Use when object localisation precision matters more than speed.",
+  "grid": {
+    "resolution": 500,
+    "voxel_size": 3.0,
+    "center": "auto"
+  },
+  "motion": {
+    "pixel_diff_threshold": 2.0,
+    "attenuation_coefficient": 0.1
+  },
+  "ray": {
+    "max_steps": 0,
+    "frame_stride": 1
+  },
+  "clustering": {
+    "min_corroborating_cameras": 2,
+    "noise_floor_percentile": 0.90,
+    "merge_radius": -1
+  },
+  "cameras": {}
+}

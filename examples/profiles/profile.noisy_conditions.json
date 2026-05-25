@@ -1,0 +1,22 @@
+{
+  "_description": "Noisy conditions — higher motion threshold to suppress sensor noise, compression artefacts, or environmental interference (rain, fog, insects). Raises the bar for what counts as real motion.",
+  "grid": {
+    "resolution": 500,
+    "voxel_size": 6.0,
+    "center": "auto"
+  },
+  "motion": {
+    "pixel_diff_threshold": 8.0,
+    "attenuation_coefficient": 0.1
+  },
+  "ray": {
+    "max_steps": 0,
+    "frame_stride": 1
+  },
+  "clustering": {
+    "min_corroborating_cameras": 2,
+    "noise_floor_percentile": 0.95,
+    "merge_radius": -1
+  },
+  "cameras": {}
+}

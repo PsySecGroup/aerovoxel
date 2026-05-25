@@ -1,0 +1,22 @@
+{
+  "_description": "Slow motion — wide frame stride increases the temporal gap between diffed frames, amplifying the pixel difference for objects that move slowly. Objects that would be invisible at stride=1 (sub-pixel per frame) become detectable. Trades temporal resolution for motion sensitivity.",
+  "grid": {
+    "resolution": 500,
+    "voxel_size": 6.0,
+    "center": "auto"
+  },
+  "motion": {
+    "pixel_diff_threshold": 2.0,
+    "attenuation_coefficient": 0.1
+  },
+  "ray": {
+    "max_steps": 0,
+    "frame_stride": 6
+  },
+  "clustering": {
+    "min_corroborating_cameras": 2,
+    "noise_floor_percentile": 0.90,
+    "merge_radius": -1
+  },
+  "cameras": {}
+}

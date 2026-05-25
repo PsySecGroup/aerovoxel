@@ -1,0 +1,22 @@
+{
+  "_description": "Single camera — lowers min_corroborating_cameras to 1, allowing the multicam JSON to include voxels seen by only one camera. Useful for debugging camera coverage, verifying that a specific camera's rays are landing where expected, or running with a single-camera setup.",
+  "grid": {
+    "resolution": 500,
+    "voxel_size": 6.0,
+    "center": "auto"
+  },
+  "motion": {
+    "pixel_diff_threshold": 2.0,
+    "attenuation_coefficient": 0.1
+  },
+  "ray": {
+    "max_steps": 0,
+    "frame_stride": 1
+  },
+  "clustering": {
+    "min_corroborating_cameras": 1,
+    "noise_floor_percentile": 0.90,
+    "merge_radius": -1
+  },
+  "cameras": {}
+}

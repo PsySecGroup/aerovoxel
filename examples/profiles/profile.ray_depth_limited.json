@@ -1,0 +1,22 @@
+{
+  "_description": "Ray depth limited — truncates each ray after 50 steps, preventing accumulation in background voxels far from the cameras. Reduces noise in the bin and speeds up processing on dense scenes. The trade-off: objects beyond ~300 world units (50 steps x 6 voxel_size) from the camera entry point will be missed.",
+  "grid": {
+    "resolution": 500,
+    "voxel_size": 6.0,
+    "center": "auto"
+  },
+  "motion": {
+    "pixel_diff_threshold": 2.0,
+    "attenuation_coefficient": 0.1
+  },
+  "ray": {
+    "max_steps": 50,
+    "frame_stride": 1
+  },
+  "clustering": {
+    "min_corroborating_cameras": 2,
+    "noise_floor_percentile": 0.90,
+    "merge_radius": -1
+  },
+  "cameras": {}
+}

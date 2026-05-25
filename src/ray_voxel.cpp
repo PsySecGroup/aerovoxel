@@ -369,6 +369,172 @@ Mat3 camera_matrix_from_generator_convention(float yaw_deg, float pitch_deg, flo
 
 
 // ============================================================
+// Section 3c: Profile — Runtime Calibration Parameters
+// ============================================================
+
+/**
+ * @brief All tunable parameters for a single scene run.
+ *
+ * Values are loaded from an optional `profile.json` file located in the
+ * same directory as the metadata file. Any field absent from the JSON
+ * falls back to the default value shown here, so a profile only needs to
+ * contain the parameters that differ from the defaults.
+ *
+ * ## profile.json schema
+ * @code
+ * {
+ *   "grid": {
+ *     "resolution":  500,       // voxels per axis (N x N x N grid)
+ *     "voxel_size":  6.0,       // world-unit side length of one voxel
+ *     "center": "auto"          // or [x, y, z] — world-space grid centre
+ *   },
+ *   "motion": {
+ *     "pixel_diff_threshold":    2.0,  // global per-pixel motion threshold
+ *     "attenuation_coefficient": 0.1   // distance-attenuation factor (future use)
+ *   },
+ *   "ray": {
+ *     "max_steps":    500,   // maximum DDA steps per ray (0 = unlimited)
+ *     "frame_stride": 1      // diff frame[i] vs frame[i+stride]; advance by stride
+ *   },
+ *   "clustering": {
+ *     "min_corroborating_cameras": 2,    // cameras that must agree on a voxel
+ *     "noise_floor_percentile":    0.90, // discard bottom X% by value before clustering
+ *     "merge_radius":             -1     // cluster merge radius (-1 = 3x voxel_size)
+ *   },
+ *   "cameras": {
+ *     "0": { "pixel_diff_threshold": 5.0 },
+ *     "1": { "pixel_diff_threshold": 1.5, "frame_stride": 2 }
+ *   }
+ * }
+ * @endcode
+ */
+struct Profile {
+    // --- grid ---
+    int   resolution  = 500;
+    float voxel_size  = 6.f;
+    bool  center_auto = true;
+    Vec3  grid_center = {0.f, 0.f, 500.f};
+
+    // --- motion ---
+    float pixel_diff_threshold    = 2.0f;
+    float attenuation_coefficient = 0.1f;
+
+    // --- ray ---
+    int max_steps    = 0;   ///< 0 = unlimited
+    int frame_stride = 1;
+
+    // --- clustering ---
+    int   min_corroborating_cameras = 2;
+    float noise_floor_percentile    = 0.90f;
+    float merge_radius              = -1.f; ///< -1 = 3 x voxel_size
+
+    // --- per-camera overrides (camera_index -> overridden values) ---
+    struct CameraOverride {
+        float pixel_diff_threshold = -1.f; ///< -1 = use global default
+        int   frame_stride         = -1;   ///< -1 = use global default
+    };
+    std::map<int, CameraOverride> camera_overrides;
+};
+
+/**
+ * @brief Load a Profile from a profile.json file, with full fallback to defaults.
+ *
+ * Looks for `profile.json` in the same directory as `metadata_path`. If the
+ * file does not exist, or if individual keys are absent, the corresponding
+ * Profile fields keep their default values — making every field optional.
+ *
+ * @param metadata_path Path to the metadata JSON (used to locate the profile).
+ * @return Populated Profile; all-defaults if no profile.json is found.
+ */
+Profile load_profile(const std::string &metadata_path) {
+    Profile prof;
+
+    // Derive profile path: same directory as metadata, named "profile.json".
+    std::string dir = metadata_path;
+    auto slash = dir.find_last_of("/\\");
+    if(slash != std::string::npos) dir = dir.substr(0, slash);
+    else                            dir = ".";
+    std::string profile_path = dir + "/profile.json";
+
+    std::ifstream ifs(profile_path);
+    if(!ifs.is_open()) {
+        std::cout << "[Profile] No profile.json found at " << profile_path
+                  << " — using defaults.\n";
+        return prof;
+    }
+
+    json j;
+    try { ifs >> j; }
+    catch(const std::exception &e) {
+        std::cerr << "[Profile] Failed to parse " << profile_path
+                  << ": " << e.what() << " — using defaults.\n";
+        return prof;
+    }
+    std::cout << "[Profile] Loaded " << profile_path << "\n";
+
+    // --- grid ---
+    if(j.contains("grid")) {
+        auto &g = j["grid"];
+        if(g.contains("resolution")) prof.resolution = g["resolution"].get<int>();
+        if(g.contains("voxel_size")) prof.voxel_size  = g["voxel_size"].get<float>();
+        if(g.contains("center")) {
+            auto &c = g["center"];
+            if(c.is_string() && c.get<std::string>() == "auto") {
+                prof.center_auto = true;
+            } else if(c.is_array() && c.size() == 3) {
+                prof.center_auto   = false;
+                prof.grid_center.x = c[0].get<float>();
+                prof.grid_center.y = c[1].get<float>();
+                prof.grid_center.z = c[2].get<float>();
+            }
+        }
+    }
+
+    // --- motion ---
+    if(j.contains("motion")) {
+        auto &m = j["motion"];
+        if(m.contains("pixel_diff_threshold"))
+            prof.pixel_diff_threshold = m["pixel_diff_threshold"].get<float>();
+        if(m.contains("attenuation_coefficient"))
+            prof.attenuation_coefficient = m["attenuation_coefficient"].get<float>();
+    }
+
+    // --- ray ---
+    if(j.contains("ray")) {
+        auto &r = j["ray"];
+        if(r.contains("max_steps"))    prof.max_steps    = r["max_steps"].get<int>();
+        if(r.contains("frame_stride")) prof.frame_stride = r["frame_stride"].get<int>();
+    }
+
+    // --- clustering ---
+    if(j.contains("clustering")) {
+        auto &cl = j["clustering"];
+        if(cl.contains("min_corroborating_cameras"))
+            prof.min_corroborating_cameras = cl["min_corroborating_cameras"].get<int>();
+        if(cl.contains("noise_floor_percentile"))
+            prof.noise_floor_percentile = cl["noise_floor_percentile"].get<float>();
+        if(cl.contains("merge_radius"))
+            prof.merge_radius = cl["merge_radius"].get<float>();
+    }
+
+    // --- per-camera overrides ---
+    if(j.contains("cameras") && j["cameras"].is_object()) {
+        for(auto &[key, val] : j["cameras"].items()) {
+            int cam_id = std::stoi(key);
+            Profile::CameraOverride ov;
+            if(val.contains("pixel_diff_threshold"))
+                ov.pixel_diff_threshold = val["pixel_diff_threshold"].get<float>();
+            if(val.contains("frame_stride"))
+                ov.frame_stride = val["frame_stride"].get<int>();
+            prof.camera_overrides[cam_id] = ov;
+        }
+    }
+
+    return prof;
+}
+
+
+// ============================================================
 // Section 4: JSON Metadata Loading
 // ============================================================
 
@@ -826,225 +992,7 @@ std::vector<RayStep> cast_ray_into_grid(
 
 
 // ============================================================
-// Section 7: Multi-Camera Voxel Cluster JSON Export
-// ============================================================
-
-/**
- * @brief Collect all voxels seen by >= min_cameras cameras, filter to the top
- *        value percentile, then greedily cluster them into spatial events.
- *
- * ## Why clustering instead of raw voxels
- * A moving object occupies many adjacent voxels simultaneously, and the same
- * object will be detected across multiple frames as it moves through the scene.
- * Listing every qualifying voxel individually produces thousands of entries
- * that all refer to the same physical event. Clustering reduces that to one
- * entry per distinct detection — directly actionable for downstream reasoning.
- *
- * ## Clustering algorithm (greedy, value-priority)
- * 1. Collect all voxels passing the camera-count and value-threshold filters.
- * 2. Sort them by accumulated value, highest first — object cores have the
- *    densest ray convergence and will seed clusters before background stragglers.
- * 3. For each voxel (in value order):
- *    a. If it falls within `cluster_radius` world units of an existing cluster's
- *       weighted centroid, merge it into that cluster (updating the centroid).
- *    b. Otherwise start a new cluster seeded by this voxel.
- *
- * The weighted centroid update keeps the cluster centre pulled toward the
- * highest-energy region rather than drifting as new voxels are added:
- * @code
- *   new_centroid = (old_centroid * old_weight + voxel_pos * voxel_value)
- *                  / (old_weight + voxel_value)
- * @endcode
- *
- * ## Output JSON Format
- * One entry per cluster, sorted by total_value descending:
- * @code
- * [
- *   {
- *     "cx": 12.0,           // world-space weighted centroid X
- *     "cy": 1987.5,         // world-space weighted centroid Y
- *     "cz": 496.0,          // world-space weighted centroid Z
- *     "total_value": 4.2e8, // sum of all voxel values in the cluster
- *     "peak_value":  2.47e7,// highest single-voxel value
- *     "voxel_count": 1240,  // how many voxels were merged into this cluster
- *     "camera_count": 3,    // max cameras seen by any voxel in the cluster
- *     "bbox_min": [-24, 1950, 462],  // world-space bounding box corners
- *     "bbox_max": [ 48, 2025, 528]
- *   },
- *   ...
- * ]
- * @endcode
- *
- * @param json_path      Output path for the JSON file.
- * @param voxel_grid     Sparse voxel accumulator (flat index -> value).
- * @param camera_hits    Per-voxel set of contributing camera IDs.
- * @param N              Grid resolution (voxels per axis).
- * @param voxel_size     Side length of one voxel in world units.
- * @param grid_center    World-space centre of the voxel volume.
- * @param min_cameras    Minimum distinct cameras for a voxel to qualify.
- * @param value_pct      Fraction of voxels to discard as low-signal (0.0-1.0).
- *                       Default 0.90 keeps the top 10% by accumulated value.
- * @param cluster_radius World-space radius within which voxels are merged.
- *                       Default 3x voxel_size (18 world units at voxel_size=6).
- */
-void save_multicamera_json(
-    const std::string                                        &json_path,
-    const std::unordered_map<int, float>                    &voxel_grid,
-    const std::unordered_map<int, std::unordered_set<int>>  &camera_hits,
-    int                                                       N,
-    float                                                     voxel_size,
-    const Vec3                                               &grid_center,
-    int                                                       min_cameras   = 2,
-    float                                                     value_pct     = 0.90f,
-    float                                                     cluster_radius = -1.f)
-{
-    if(cluster_radius < 0.f) cluster_radius = voxel_size * 3.f;
-
-    float half_size = 0.5f * (N * voxel_size);
-    Vec3 grid_min = {
-        grid_center.x - half_size,
-        grid_center.y - half_size,
-        grid_center.z - half_size
-    };
-
-    // --- Step 1: Collect qualifying voxels ---
-    struct VoxelPoint {
-        float wx, wy, wz;  // world-space centre
-        float value;
-        int   camera_count;
-    };
-    std::vector<VoxelPoint> candidates;
-
-    std::vector<float> all_values;
-    all_values.reserve(voxel_grid.size());
-    for(const auto &[idx, val] : voxel_grid) all_values.push_back(val);
-
-    float value_threshold = 0.f;
-    if(!all_values.empty()) {
-        std::sort(all_values.begin(), all_values.end());
-        size_t pidx = static_cast<size_t>(all_values.size() * value_pct);
-        value_threshold = all_values[std::min(pidx, all_values.size()-1)];
-    }
-
-    for(const auto &[idx, cam_set] : camera_hits) {
-        if(static_cast<int>(cam_set.size()) < min_cameras) continue;
-        auto it = voxel_grid.find(idx);
-        if(it == voxel_grid.end() || it->second < value_threshold) continue;
-
-        int ix = idx / (N * N);
-        int iy = (idx / N) % N;
-        int iz = idx % N;
-
-        candidates.push_back({
-            grid_min.x + (ix + 0.5f) * voxel_size,
-            grid_min.y + (iy + 0.5f) * voxel_size,
-            grid_min.z + (iz + 0.5f) * voxel_size,
-            it->second,
-            static_cast<int>(cam_set.size())
-        });
-    }
-
-    // --- Step 2: Sort by value descending so high-energy voxels seed clusters ---
-    std::sort(candidates.begin(), candidates.end(),
-              [](const VoxelPoint &a, const VoxelPoint &b){ return a.value > b.value; });
-
-    // --- Step 3: Greedy clustering ---
-    struct Cluster {
-        double cx, cy, cz;    // weighted centroid (double for precision)
-        double total_weight;  // sum of values (used as weight)
-        float  total_value;
-        float  peak_value;
-        int    voxel_count;
-        int    camera_count;  // max across all member voxels
-        float  bbox_min[3];
-        float  bbox_max[3];
-    };
-    std::vector<Cluster> clusters;
-    float r2 = cluster_radius * cluster_radius;
-
-    for(const auto &vp : candidates) {
-        // Find the nearest existing cluster within cluster_radius.
-        int   best    = -1;
-        float best_d2 = r2;
-
-        for(int k = 0; k < (int)clusters.size(); k++) {
-            float dx = vp.wx - (float)clusters[k].cx;
-            float dy = vp.wy - (float)clusters[k].cy;
-            float dz = vp.wz - (float)clusters[k].cz;
-            float d2 = dx*dx + dy*dy + dz*dz;
-            if(d2 < best_d2) { best_d2 = d2; best = k; }
-        }
-
-        if(best >= 0) {
-            // Merge into existing cluster using value-weighted centroid update.
-            Cluster &cl = clusters[best];
-            double w  = vp.value;
-            double tw = cl.total_weight + w;
-            cl.cx = (cl.cx * cl.total_weight + vp.wx * w) / tw;
-            cl.cy = (cl.cy * cl.total_weight + vp.wy * w) / tw;
-            cl.cz = (cl.cz * cl.total_weight + vp.wz * w) / tw;
-            cl.total_weight  = tw;
-            cl.total_value  += vp.value;
-            cl.peak_value    = std::fmax(cl.peak_value, vp.value);
-            cl.voxel_count++;
-            cl.camera_count  = std::max(cl.camera_count, vp.camera_count);
-            cl.bbox_min[0] = std::fmin(cl.bbox_min[0], vp.wx);
-            cl.bbox_min[1] = std::fmin(cl.bbox_min[1], vp.wy);
-            cl.bbox_min[2] = std::fmin(cl.bbox_min[2], vp.wz);
-            cl.bbox_max[0] = std::fmax(cl.bbox_max[0], vp.wx);
-            cl.bbox_max[1] = std::fmax(cl.bbox_max[1], vp.wy);
-            cl.bbox_max[2] = std::fmax(cl.bbox_max[2], vp.wz);
-        } else {
-            // Seed a new cluster.
-            Cluster cl;
-            cl.cx = vp.wx; cl.cy = vp.wy; cl.cz = vp.wz;
-            cl.total_weight = vp.value;
-            cl.total_value  = vp.value;
-            cl.peak_value   = vp.value;
-            cl.voxel_count  = 1;
-            cl.camera_count = vp.camera_count;
-            cl.bbox_min[0] = cl.bbox_max[0] = vp.wx;
-            cl.bbox_min[1] = cl.bbox_max[1] = vp.wy;
-            cl.bbox_min[2] = cl.bbox_max[2] = vp.wz;
-            clusters.push_back(cl);
-        }
-    }
-
-    // --- Step 4: Sort clusters by total value and serialise ---
-    std::sort(clusters.begin(), clusters.end(),
-              [](const Cluster &a, const Cluster &b){ return a.total_value > b.total_value; });
-
-    json out = json::array();
-    for(const auto &cl : clusters) {
-        out.push_back({
-            {"cx",           cl.cx},
-            {"cy",           cl.cy},
-            {"cz",           cl.cz},
-            {"total_value",  cl.total_value},
-            {"peak_value",   cl.peak_value},
-            {"voxel_count",  cl.voxel_count},
-            {"camera_count", cl.camera_count},
-            {"bbox_min",     {cl.bbox_min[0], cl.bbox_min[1], cl.bbox_min[2]}},
-            {"bbox_max",     {cl.bbox_max[0], cl.bbox_max[1], cl.bbox_max[2]}}
-        });
-    }
-
-    std::ofstream ofs(json_path);
-    if(!ofs) {
-        std::cerr << "Cannot open JSON output file: " << json_path << "\n";
-        return;
-    }
-    ofs << out.dump(2) << "\n";
-    ofs.close();
-
-    std::cout << "Saved multi-camera cluster JSON to " << json_path
-              << " (" << clusters.size() << " clusters from "
-              << candidates.size() << " qualifying voxels)\n";
-}
-
-
-// ============================================================
-// Section 8: Main Pipeline
+// Section 7: Main Pipeline
 // ============================================================
 
 /**
@@ -1131,80 +1079,96 @@ int main(int argc, char** argv) {
     }
 
     // -------------------------------------------------------
-    // Step 7.2: Allocate the shared 3D voxel grid
+    // Step 7.2: Load profile and resolve all parameters
     // -------------------------------------------------------
-    // N: Resolution along each axis. Total addressable voxels = N^3 = 125 million,
-    // but only voxels touched by at least one ray are stored (see sparse grid below).
-    const int N = 500;
+    Profile prof = load_profile(metadata_path);
 
-    // voxel_size: Physical side length of each cubic voxel in world units.
-    // Together with N, this defines the total grid extent: N * voxel_size = 3000 units.
-    const float voxel_size = 6.f;
+    // Auto-centre: compute centroid of all camera positions in the metadata.
+    if(prof.center_auto) {
+        double sx = 0, sy = 0, sz = 0;
+        for(const auto &f : frames) {
+            sx += f.camera_position.x;
+            sy += f.camera_position.y;
+            sz += f.camera_position.z;
+        }
+        double n = static_cast<double>(frames.size());
+        prof.grid_center = {
+            static_cast<float>(sx / n),
+            static_cast<float>(sy / n),
+            static_cast<float>(sz / n)
+        };
+        std::cout << "[Profile] Auto-centred grid at ("
+                  << prof.grid_center.x << ", "
+                  << prof.grid_center.y << ", "
+                  << prof.grid_center.z << ")\n";
+    }
 
-    // grid_center: World-space centre of the voxel volume.
-    // Adjust Z to place the grid around the expected depth of moving objects.
-    // The commented alternative is for a closer scene (e.g. birds in flight).
-    Vec3 grid_center = { 0.f, 0.f, 500.f };
-    // Vec3 grid_center = { 0.f, 0.f, 200.f }; // Uncomment for closer scenes.
+    const int   N          = prof.resolution;
+    const float voxel_size = prof.voxel_size;
+    const Vec3  grid_center = prof.grid_center;
 
-    // Sparse voxel grid: maps a flat voxel index (ix*N*N + iy*N + iz) to its
-    // accumulated float value. Only voxels actually touched by a motion ray are
-    // inserted, so memory scales with the number of active voxels rather than N^3.
-    // For typical motion scenes this is orders of magnitude smaller than the dense
-    // alternative (500^3 floats = ~500 MB regardless of scene content).
+    std::cout << "[Profile] Grid: " << N << "^3, voxel_size=" << voxel_size
+              << ", center=(" << grid_center.x << "," << grid_center.y
+              << "," << grid_center.z << ")\n";
+
+    // -------------------------------------------------------
+    // Step 7.3: Allocate sparse voxel grid
+    // -------------------------------------------------------
+    // Only voxels touched by at least one ray are stored.
     std::unordered_map<int, float> voxel_grid;
-
-    // Per-voxel record of which camera indices contributed at least one ray.
-    // Used by save_multicamera_json() to filter voxels with multi-camera
-    // corroboration, which are far more likely to reflect real geometry.
     std::unordered_map<int, std::unordered_set<int>> camera_hits;
 
     // -------------------------------------------------------
-    // Step 7.3: Per-camera motion detection and ray accumulation
+    // Step 7.4: Per-camera motion detection and ray accumulation
     // -------------------------------------------------------
-    // motion_threshold: Pixel difference below this is treated as background noise.
-    // Raise to suppress noise; lower to capture subtle motion.
-    float motion_threshold = 2.0f;
-
-    // alpha: Coefficient for inverse-distance attenuation: weight = 1 / (1 + alpha*dist).
-    // Currently computed but not applied; see accumulation note below.
-    float alpha = 0.1f;
-
     for(auto &kv : frames_by_cam) {
         int  cam_id     = kv.first;
         auto &cam_frames = kv.second;
 
-        // Motion detection requires at least two consecutive frames.
-        if(cam_frames.size() < 2) {
+        // Resolve per-camera overrides, falling back to global profile values.
+        float cam_threshold = prof.pixel_diff_threshold;
+        int   cam_stride    = prof.frame_stride;
+        auto ov_it = prof.camera_overrides.find(cam_id);
+        if(ov_it != prof.camera_overrides.end()) {
+            if(ov_it->second.pixel_diff_threshold >= 0.f)
+                cam_threshold = ov_it->second.pixel_diff_threshold;
+            if(ov_it->second.frame_stride > 0)
+                cam_stride = ov_it->second.frame_stride;
+        }
+
+        // Motion detection requires at least two frames separated by cam_stride.
+        if((int)cam_frames.size() < cam_stride + 1) {
             continue;
         }
 
-        ImageGray prev_img;
-        bool      prev_valid = false;
-        FrameInfo prev_info;
+        // Build a strided index list: process pairs (0, stride), (stride, 2*stride), ...
+        // Each "prev" frame is loaded once and reused as the anchor for the next pair.
+        std::vector<size_t> pair_starts;
+        for(size_t i = 0; i + cam_stride < cam_frames.size(); i += cam_stride)
+            pair_starts.push_back(i);
 
-        for(size_t i = 0; i < cam_frames.size(); i++) {
-            FrameInfo curr_info = cam_frames[i];
-            std::string img_path = images_folder + "/" + curr_info.image_file;
+        for(size_t pi = 0; pi < pair_starts.size(); pi++) {
+            size_t prev_idx = pair_starts[pi];
+            size_t curr_idx = prev_idx + cam_stride;
 
-            ImageGray curr_img;
-            if(!load_image_gray(img_path, curr_img)) {
-                std::cerr << "Skipping frame due to load error.\n";
+            std::string prev_path = images_folder + "/" + cam_frames[prev_idx].image_file;
+            std::string curr_path = images_folder + "/" + cam_frames[curr_idx].image_file;
+
+            ImageGray prev_img, curr_img;
+            if(!load_image_gray(prev_path, prev_img)) {
+                std::cerr << "Skipping pair: failed to load " << prev_path << "\n";
+                continue;
+            }
+            if(!load_image_gray(curr_path, curr_img)) {
+                std::cerr << "Skipping pair: failed to load " << curr_path << "\n";
                 continue;
             }
 
-            // The first frame cannot be diffed; store it and move on.
-            if(!prev_valid) {
-                prev_img   = curr_img;
-                prev_info  = curr_info;
-                prev_valid = true;
-                continue;
-            }
-
-            // Compute motion mask between prev and curr frames.
-            MotionMask mm = detect_motion(prev_img, curr_img, motion_threshold);
+            // Compute motion mask between the strided frame pair.
+            MotionMask mm = detect_motion(prev_img, curr_img, cam_threshold);
 
             // Build the camera model for the current frame.
+            const FrameInfo &curr_info = cam_frames[curr_idx];
             Vec3 cam_pos  = curr_info.camera_position;
             Mat3 cam_rot  = camera_matrix_from_generator_convention(
                                 curr_info.yaw, curr_info.pitch, curr_info.roll);
@@ -1249,14 +1213,19 @@ int main(int argc, char** argv) {
                         cam_pos, ray_world, N, voxel_size, grid_center);
 
                     // Accumulate motion signal into each traversed voxel.
+                    // max_steps=0 means unlimited; otherwise truncate the ray.
                     // TODO: The distance-attenuation weight (1/(1+alpha*dist)) is
                     // computed here but val is fixed at pix_val * 1.0 for now.
                     // Enabling attenuation would down-weight distant voxels, which
                     // could improve localisation but needs tuning to avoid biasing
                     // reconstruction toward the cameras.
-                    for(const auto &rs : ray_steps) {
+                    int step_limit = (prof.max_steps > 0)
+                                     ? std::min((int)ray_steps.size(), prof.max_steps)
+                                     : (int)ray_steps.size();
+                    for(int si = 0; si < step_limit; si++) {
+                        const auto &rs = ray_steps[si];
                         float dist        = rs.distance;
-                        float attenuation = 1.f / (1.f + alpha * dist); // currently unused
+                        float attenuation = 1.f / (1.f + prof.attenuation_coefficient * dist); // currently unused
                         float val         = pix_val * 1.f;              // TODO: * attenuation
 
                         // Flat index into the voxel grid: [ix][iy][iz].
@@ -1268,14 +1237,11 @@ int main(int argc, char** argv) {
                 }
             }
 
-            // Slide window: current frame becomes previous for the next iteration.
-            prev_img  = curr_img;
-            prev_info = curr_info;
         }
     }
 
     // -------------------------------------------------------
-    // Step 7.4: Write sparse voxel grid to binary file
+    // Step 7.5: Write sparse voxel grid to binary file
     // -------------------------------------------------------
     /**
      * Sparse binary output format:
@@ -1324,21 +1290,6 @@ int main(int argc, char** argv) {
                   << " (" << count << " active voxels, "
                   << (12 + count * 8) / 1024 << " KB)\n";
     }
-
-    // -------------------------------------------------------
-    // Step 7.5: Write multi-camera voxel JSON
-    // -------------------------------------------------------
-    // Derive the JSON output path by replacing the .bin extension.
-    // e.g. "voxel_grid.bin" -> "voxel_grid_multicam.json"
-    std::string json_out = output_bin;
-    auto ext_pos = json_out.rfind('.');
-    if(ext_pos != std::string::npos) {
-        json_out = json_out.substr(0, ext_pos);
-    }
-    json_out += "_multicam.json";
-
-    save_multicamera_json(json_out, voxel_grid, camera_hits,
-                          N, voxel_size, grid_center, /*min_cameras=*/2);
 
     return 0;
 }

@@ -1,0 +1,22 @@
+{
+  "_description": "Loose clustering — large merge radius consolidates fragmented detections of a single large or fast-moving object into one cluster. Use when the same object is producing many scattered voxel hits across frames.",
+  "grid": {
+    "resolution": 500,
+    "voxel_size": 6.0,
+    "center": "auto"
+  },
+  "motion": {
+    "pixel_diff_threshold": 2.0,
+    "attenuation_coefficient": 0.1
+  },
+  "ray": {
+    "max_steps": 0,
+    "frame_stride": 1
+  },
+  "clustering": {
+    "min_corroborating_cameras": 2,
+    "noise_floor_percentile": 0.90,
+    "merge_radius": 60.0
+  },
+  "cameras": {}
+}
