@@ -51,7 +51,6 @@
 #include <vector>
 #include <map>
 #include <unordered_map>
-#include <unordered_set>
 #include <string>
 #include <algorithm>
 
@@ -389,17 +388,19 @@ Mat3 camera_matrix_from_generator_convention(float yaw_deg, float pitch_deg, flo
  *     "center": "auto"          // or [x, y, z] — world-space grid centre
  *   },
  *   "motion": {
- *     "pixel_diff_threshold":    2.0,  // global per-pixel motion threshold
- *     "attenuation_coefficient": 0.1   // distance-attenuation factor (future use)
+ *     "pixel_diff_threshold": 2.0  // global per-pixel motion threshold
  *   },
  *   "ray": {
- *     "max_steps":    500,   // maximum DDA steps per ray (0 = unlimited)
- *     "frame_stride": 1      // diff frame[i] vs frame[i+stride]; advance by stride
- *   },
- *   "clustering": {
- *     "min_corroborating_cameras": 2,    // cameras that must agree on a voxel
- *     "noise_floor_percentile":    0.90, // discard bottom X% by value before clustering
- *     "merge_radius":             -1     // cluster merge radius (-1 = 3x voxel_size)
+ *     "max_steps":             500,  // maximum DDA steps per ray (0 = unlimited)
+ *     "frame_stride":             1,  // diff frame[i] vs frame[i+stride]; advance by stride
+ *     "min_start_distance":    -1.0, // world units to skip before accumulating (-1 = auto)
+ *     "near_field_suppression": 0.0, // 0 = flat weight (disabled). Range [0, 1].
+ *                                     // Weight grows from 0 at min_start_distance to 1
+ *                                     // at max_useful_distance. Suppresses near-field
+ *                                     // voxels that every ray traverses, pushing hotspots
+ *                                     // toward the true object depth. Start at 0.5.
+ *     "max_useful_distance":   -1.0  // Distance at which weight reaches 1.0 (-1 = auto).
+ *                                     // Auto: far edge of the grid from the camera centroid.
  *   },
  *   "cameras": {
  *     "0": { "pixel_diff_threshold": 5.0 },
@@ -416,17 +417,14 @@ struct Profile {
     Vec3  grid_center = {0.f, 0.f, 500.f};
 
     // --- motion ---
-    float pixel_diff_threshold    = 2.0f;
-    float attenuation_coefficient = 0.1f;
+    float pixel_diff_threshold = 2.0f;
 
     // --- ray ---
-    int max_steps    = 0;   ///< 0 = unlimited
-    int frame_stride = 1;
-
-    // --- clustering ---
-    int   min_corroborating_cameras = 2;
-    float noise_floor_percentile    = 0.90f;
-    float merge_radius              = -1.f; ///< -1 = 3 x voxel_size
+    int   max_steps             = 0;    ///< 0 = unlimited
+    int   frame_stride          = 1;
+    float min_start_distance    = -1.f; ///< -1 = auto from rig geometry
+    float near_field_suppression = 0.f; ///< 0 = disabled; [0,1] ramp strength
+    float max_useful_distance   = -1.f; ///< -1 = auto from grid extent
 
     // --- per-camera overrides (camera_index -> overridden values) ---
     struct CameraOverride {
@@ -495,26 +493,16 @@ Profile load_profile(const std::string &metadata_path) {
         auto &m = j["motion"];
         if(m.contains("pixel_diff_threshold"))
             prof.pixel_diff_threshold = m["pixel_diff_threshold"].get<float>();
-        if(m.contains("attenuation_coefficient"))
-            prof.attenuation_coefficient = m["attenuation_coefficient"].get<float>();
     }
 
     // --- ray ---
     if(j.contains("ray")) {
         auto &r = j["ray"];
-        if(r.contains("max_steps"))    prof.max_steps    = r["max_steps"].get<int>();
-        if(r.contains("frame_stride")) prof.frame_stride = r["frame_stride"].get<int>();
-    }
-
-    // --- clustering ---
-    if(j.contains("clustering")) {
-        auto &cl = j["clustering"];
-        if(cl.contains("min_corroborating_cameras"))
-            prof.min_corroborating_cameras = cl["min_corroborating_cameras"].get<int>();
-        if(cl.contains("noise_floor_percentile"))
-            prof.noise_floor_percentile = cl["noise_floor_percentile"].get<float>();
-        if(cl.contains("merge_radius"))
-            prof.merge_radius = cl["merge_radius"].get<float>();
+        if(r.contains("max_steps"))              prof.max_steps              = r["max_steps"].get<int>();
+        if(r.contains("frame_stride"))            prof.frame_stride           = r["frame_stride"].get<int>();
+        if(r.contains("min_start_distance"))      prof.min_start_distance     = r["min_start_distance"].get<float>();
+        if(r.contains("near_field_suppression"))  prof.near_field_suppression = r["near_field_suppression"].get<float>();
+        if(r.contains("max_useful_distance"))     prof.max_useful_distance    = r["max_useful_distance"].get<float>();
     }
 
     // --- per-camera overrides ---
@@ -1034,10 +1022,17 @@ std::vector<RayStep> cast_ray_into_grid(
  * regions consistently seen as "moving" by many cameras accumulate large
  * values, forming a probabilistic occupancy map.
  *
- * @note The distance-based attenuation factor `alpha` is computed but
- * currently not applied (the accumulation uses a fixed weight of 1.0).
- * Enabling it would weight near voxels more than far ones, which may or
- * may not improve reconstruction quality depending on the scene scale.
+ * ### Near-Field Suppression Ramp
+ * Each voxel receives a weighted contribution `pix_val * weight`, where weight
+ * rises linearly from `(1 - near_field_suppression)` at `min_start_distance`
+ * to `1.0` at `max_useful_distance`:
+ * @code
+ *   t      = clamp((dist - min_start) / (max_useful - min_start), 0, 1)
+ *   weight = (1 - suppression) + suppression * t
+ * @endcode
+ * Near-field voxels (just past the skip boundary) that every ray traverses
+ * receive low weight; distant voxels near the true object depth receive full
+ * weight. Set `near_field_suppression: 0` to disable (flat weight).
  *
  * @param argc Argument count. Must be 4.
  * @param argv Argument vector: [program, metadata.json, image_folder, output.bin]
@@ -1112,11 +1107,83 @@ int main(int argc, char** argv) {
               << "," << grid_center.z << ")\n";
 
     // -------------------------------------------------------
+    // Resolve min_start_distance
+    // -------------------------------------------------------
+    // When set to -1 in the profile, auto-calculate from rig geometry.
+    // Every camera inside the grid fires rays that all start from its own
+    // voxel, causing massive artificial accumulation at camera positions.
+    // Skipping the first min_start_distance world units of each ray
+    // eliminates this artifact.
+    //
+    // Heuristic: use half the maximum pairwise distance between cameras
+    // (the "rig diameter"). This skips the camera cluster without pushing
+    // so far that real objects are missed. Floor: 3 x voxel_size.
+    if(prof.min_start_distance < 0.f) {
+        std::vector<Vec3> cam_positions;
+        for(const auto &kv : frames_by_cam)
+            if(!kv.second.empty())
+                cam_positions.push_back(kv.second[0].camera_position);
+
+        float max_dist = 0.f;
+        for(size_t a = 0; a < cam_positions.size(); a++) {
+            for(size_t b = a + 1; b < cam_positions.size(); b++) {
+                float dx = cam_positions[a].x - cam_positions[b].x;
+                float dy = cam_positions[a].y - cam_positions[b].y;
+                float dz = cam_positions[a].z - cam_positions[b].z;
+                max_dist = std::fmax(max_dist, std::sqrt(dx*dx + dy*dy + dz*dz));
+            }
+        }
+        prof.min_start_distance = std::fmax(max_dist * 0.5f, voxel_size * 3.f);
+        std::cout << "[Profile] min_start_distance auto: "
+                  << prof.min_start_distance
+                  << " (rig diameter=" << max_dist << ")\n";
+    } else {
+        std::cout << "[Profile] min_start_distance: "
+                  << prof.min_start_distance << "\n";
+    }
+
+    // Resolve max_useful_distance.
+    // When -1, auto-calculate as the diagonal distance from the camera centroid
+    // to the far corner of the voxel grid. This gives the full range over which
+    // the weight ramp operates: weight=0 at min_start_distance, weight=1 at
+    // max_useful_distance (or beyond).
+    if(prof.max_useful_distance < 0.f) {
+        // Half-diagonal of the grid cube.
+        float half_extent = 0.5f * N * voxel_size;
+        float grid_diagonal = std::sqrt(3.f) * half_extent;
+        // Distance from camera centroid to far corner.
+        float cx = grid_center.x, cy = grid_center.y, cz = grid_center.z;
+        double sx = 0, sy = 0, sz = 0;
+        int    np = 0;
+        for(const auto &kv2 : frames_by_cam) {
+            if(!kv2.second.empty()) {
+                sx += kv2.second[0].camera_position.x;
+                sy += kv2.second[0].camera_position.y;
+                sz += kv2.second[0].camera_position.z;
+                np++;
+            }
+        }
+        if(np > 0) {
+            float dx = cx - float(sx/np);
+            float dy = cy - float(sy/np);
+            float dz = cz - float(sz/np);
+            float centroid_to_center = std::sqrt(dx*dx + dy*dy + dz*dz);
+            prof.max_useful_distance = centroid_to_center + grid_diagonal;
+        } else {
+            prof.max_useful_distance = grid_diagonal;
+        }
+        std::cout << "[Profile] max_useful_distance auto: "
+                  << prof.max_useful_distance << "\n";
+    } else {
+        std::cout << "[Profile] max_useful_distance: "
+                  << prof.max_useful_distance << "\n";
+    }
+
+    // -------------------------------------------------------
     // Step 7.3: Allocate sparse voxel grid
     // -------------------------------------------------------
     // Only voxels touched by at least one ray are stored.
     std::unordered_map<int, float> voxel_grid;
-    std::unordered_map<int, std::unordered_set<int>> camera_hits;
 
     // -------------------------------------------------------
     // Step 7.4: Per-camera motion detection and ray accumulation
@@ -1214,25 +1281,46 @@ int main(int argc, char** argv) {
 
                     // Accumulate motion signal into each traversed voxel.
                     // max_steps=0 means unlimited; otherwise truncate the ray.
-                    // TODO: The distance-attenuation weight (1/(1+alpha*dist)) is
-                    // computed here but val is fixed at pix_val * 1.0 for now.
-                    // Enabling attenuation would down-weight distant voxels, which
-                    // could improve localisation but needs tuning to avoid biasing
-                    // reconstruction toward the cameras.
+                    //
+                    // Near-field suppression ramp:
+                    //
+                    //   t = (dist - min_start_distance)
+                    //         / (max_useful_distance - min_start_distance)
+                    //   t = clamp(t, 0, 1)
+                    //   weight = lerp(1 - near_field_suppression, 1.0, t)
+                    //
+                    //   near_field_suppression=0 → weight=1 everywhere (flat, disabled)
+                    //   near_field_suppression=1 → weight=0 at skip boundary, 1 at max_useful_distance
+                    //   near_field_suppression=0.5 → weight=0.5 at skip boundary, 1 at max_useful_distance
+                    //
+                    // This is the correct direction: near-field voxels that every ray
+                    // traverses get down-weighted, distant voxels at the object location
+                    // get full weight. The ramp is linear so it is easy to reason about.
+                    const float nfs       = prof.near_field_suppression;
+                    const float ramp_len  = prof.max_useful_distance - prof.min_start_distance;
+                    const bool  use_ramp  = (nfs > 1e-6f && ramp_len > 1e-3f);
                     int step_limit = (prof.max_steps > 0)
                                      ? std::min((int)ray_steps.size(), prof.max_steps)
                                      : (int)ray_steps.size();
                     for(int si = 0; si < step_limit; si++) {
                         const auto &rs = ray_steps[si];
-                        float dist        = rs.distance;
-                        float attenuation = 1.f / (1.f + prof.attenuation_coefficient * dist); // currently unused
-                        float val         = pix_val * 1.f;              // TODO: * attenuation
+                        // Skip voxels within min_start_distance of the camera.
+                        if(rs.distance < prof.min_start_distance) continue;
+
+                        // Apply near-field suppression ramp.
+                        float weight = 1.f;
+                        if(use_ramp) {
+                            float t = (rs.distance - prof.min_start_distance) / ramp_len;
+                            if(t > 1.f) t = 1.f;
+                            // weight rises from (1 - nfs) at the skip boundary to 1.0
+                            // at max_useful_distance, suppressing the near field.
+                            weight = (1.f - nfs) + nfs * t;
+                        }
+                        float val = pix_val * weight;
 
                         // Flat index into the voxel grid: [ix][iy][iz].
                         int idx = rs.ix * N * N + rs.iy * N + rs.iz;
                         voxel_grid[idx] += val;
-                        // Record this camera as a contributor to the voxel.
-                        camera_hits[idx].insert(cam_id);
                     }
                 }
             }
@@ -1290,6 +1378,7 @@ int main(int argc, char** argv) {
                   << " (" << count << " active voxels, "
                   << (12 + count * 8) / 1024 << " KB)\n";
     }
+
 
     return 0;
 }
