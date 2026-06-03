@@ -9,10 +9,13 @@
   },
   "ray": {
     "max_steps": 0,
-    "frame_stride": 2,
+    "frame_stride": 1,
     "min_start_distance": 1800,
     "near_field_suppression": 0.9,
     "max_useful_distance": -1
+  },
+  "image": {
+    "scale": 0.25
   },
   "cameras": {}
 }

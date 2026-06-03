@@ -38,8 +38,7 @@ fi
 # Re-run if either the voxel grid or its companion multicam JSON is absent.
 # The JSON is produced in the same pass, so a missing JSON means the binary
 # that wrote the existing .bin predates the multicam feature.
-MULTICAM_JSON="$EXAMPLE_DIR/voxel_grid_multicam.json"
-if [ ! -f "$EXAMPLE_DIR/voxel_grid.bin" ] || [ ! -f "$MULTICAM_JSON" ]; then
+if [ ! -f "$EXAMPLE_DIR/voxel_grid.bin" ]; then
     echo "[run] Running ray_voxel..."
     "$PROJECT_ROOT/build/ray_voxel" "$META" "$EXAMPLE_DIR/frames" "$EXAMPLE_DIR/voxel_grid.bin"
     if [ $? -ne 0 ]; then
@@ -49,4 +48,4 @@ if [ ! -f "$EXAMPLE_DIR/voxel_grid.bin" ] || [ ! -f "$MULTICAM_JSON" ]; then
 fi
 
 # ── viewer ───────────────────────────────────────────────────────────────────
-python src/viewVoxelMotion.py "$EXAMPLE_DIR/voxel_grid.bin"
+#python src/viewVoxelMotion.py "$EXAMPLE_DIR/voxel_grid.bin"

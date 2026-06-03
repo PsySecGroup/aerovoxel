@@ -20,7 +20,7 @@ Projects motion of pixels to a voxel
 
 ```bash
 ./scripts/install.sh
-. scripts/activate.s
+. scripts/activate.sh
 ```
 
 ## Todo
@@ -31,6 +31,7 @@ Figure out PixelationDecensorer.py
 rm build/ray_voxel
 ./examples/afternoon/clean.sh
 ./examples/afternoon/run.sh
+python src/viewVoxelMotion.py examples/afternoon/voxel_grid.bin
 python src/binToCsv.py examples/afternoon/voxel_grid.bin output.csv
 
 ## Calibration Server
