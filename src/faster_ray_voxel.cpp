@@ -795,8 +795,10 @@ int main(int argc, char** argv) {
             const Mat3  cam_rot   = camera_matrix_from_generator_convention(
                                         curr_info.yaw, curr_info.pitch, curr_info.roll);
             const float fov_rad   = deg2rad(curr_info.fov_degrees);
-            // focal_len uses the downscaled mm.width — correct because FOV is unchanged.
-            const float focal_len = (mm.width * 0.5f) / std::tan(fov_rad * 0.5f);
+            // focal_len uses the downscaled mm.height — correct because FOV is unchanged.
+            // const float focal_len = (mm.width * 0.5f) / std::tan(fov_rad * 0.5f);
+            // fixed: treats fov as vertical (matches PyVista view_angle convention)
+            const float focal_len = (mm.height * 0.5f) / std::tan(fov_rad * 0.5f);
             const int   W = mm.width, H = mm.height;
 
             // DDA accumulation — OpenMP parallelizes over image rows.

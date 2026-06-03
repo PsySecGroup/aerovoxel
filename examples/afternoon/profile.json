@@ -2,7 +2,7 @@
   "grid": {
     "resolution": 500,
     "voxel_size": 6.0,
-    "center": [0, 750, 500]
+    "center": [0, 1500, 500]
   },
   "motion": {
     "pixel_diff_threshold": 2.0
@@ -10,8 +10,8 @@
   "ray": {
     "max_steps": 0,
     "frame_stride": 1,
-    "min_start_distance": 1800,
-    "near_field_suppression": 0.9,
+    "min_start_distance": -1,
+    "near_field_suppression": 0.4,
     "max_useful_distance": -1
   },
   "image": {

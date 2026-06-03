@@ -29,6 +29,7 @@ images
 !images/.gitkeep
 
 **/frames/*.png
+**/frames/*.jpg
 voxel_grid.bin
 screenshots/
 metadata.json

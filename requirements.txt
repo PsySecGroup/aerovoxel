@@ -7,3 +7,4 @@ astropy
 PyQt5
 pyvista
 pyyaml
+Pillow

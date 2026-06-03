@@ -6,6 +6,7 @@ import yaml
 import numpy as np
 import pyvista as pv
 from pathlib import Path
+from PIL import Image
 
 
 # ---------------------------------------------------------------------------
@@ -290,23 +291,28 @@ def main(config_path, output_dir=None):
     frames_dir = out_dir / "frames"
     frames_dir.mkdir(parents=True, exist_ok=True)
 
-    # If the frames directory already contains PNGs, skip rendering entirely
+    # If the frames directory already contains images, skip rendering entirely
     # and rebuild metadata from the existing files instead. This avoids
     # re-running the expensive PyVista render pass on every invocation.
-    existing_pngs = sorted(frames_dir.glob("*.png"))
-    if existing_pngs:
-        print(f"[Skip] {len(existing_pngs)} PNG(s) already exist in {frames_dir} — skipping render.")
+    # Prefers JPEGs (current format); falls back to PNGs for backward compat.
+    existing_imgs = sorted(frames_dir.glob("*.jpg"))
+    if not existing_imgs:
+        existing_imgs = sorted(frames_dir.glob("*.png"))
+
+    if existing_imgs:
+        fmt = existing_imgs[0].suffix.upper().lstrip('.')
+        print(f"[Skip] {len(existing_imgs)} {fmt}(s) already exist in {frames_dir} — skipping render.")
         metadata = []
-        for png in existing_pngs:
+        for img in existing_imgs:
             # Recover cam/frame indices from the filename convention:
-            # camera_<cam_idx:03d>_frame_<frame_idx:03d>.png
-            parts = png.stem.split("_")  # ['camera', '000', 'frame', '000']
+            # camera_<cam_idx:03d>_frame_<frame_idx:03d>.jpg
+            parts = img.stem.split("_")  # ['camera', '000', 'frame', '000']
             try:
                 cam_idx   = int(parts[1])
                 frame_idx = int(parts[3])
                 cam       = cameras[cam_idx]
             except (IndexError, ValueError):
-                print(f"  [Warn] Cannot parse indices from filename: {png.name} — skipping.")
+                print(f"  [Warn] Cannot parse indices from filename: {img.name} — skipping.")
                 continue
             metadata.append({
                 "camera_index":    cam_idx,
@@ -316,7 +322,7 @@ def main(config_path, output_dir=None):
                 "pitch":           cam.get('pitch', 0),
                 "roll":            cam.get('roll',  0),
                 "fov_degrees":     cam.get('fov',   60),
-                "image_file":      png.name,
+                "image_file":      img.name,
                 "rendered":        False
             })
     else:
@@ -336,12 +342,16 @@ def main(config_path, output_dir=None):
                 build_scene(plotter, cfg, frame_objects, t)
                 apply_camera(plotter, cam)
 
-                img_name = f"camera_{cam_idx:03d}_frame_{frame_idx:03d}.png"
+                img_name = f"camera_{cam_idx:03d}_frame_{frame_idx:03d}.jpg"
                 img_path = frames_dir / img_name
 
                 plotter.show(auto_close=False)
-                plotter.screenshot(str(img_path))
+                # PyVista screenshots are RGBA; JPEG requires RGB — strip alpha explicitly.
+                img_array = plotter.screenshot(return_img=True)
                 plotter.close()
+                if img_array.ndim == 3 and img_array.shape[2] == 4:
+                    img_array = img_array[:, :, :3]
+                Image.fromarray(img_array).save(str(img_path), 'JPEG', quality=90)
 
                 metadata.append({
                     "camera_index":    cam_idx,

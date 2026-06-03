@@ -24,17 +24,17 @@ objects:
     color: [0.9, 0.95, 1.0]
 
 cameras:
-  - position: [0, -500, 100]
+  - position: [0, -600, 150]
     yaw: 0
-    pitch: 10
-    fov: 60
+    pitch: 15
+    fov: 65
 
-  - position: [300, -400, 120]
-    yaw: -20
-    pitch: 12
-    fov: 55
+  - position: [1000, 200, 200]
+    yaw: -29
+    pitch: 8
+    fov: 65
 
-  - position: [-300, -450, 90]
-    yaw: 18
+  - position: [-1000, 200, 200]
+    yaw: 29
     pitch: 8
     fov: 65

@@ -23,7 +23,7 @@ fi
 
 # ── frames + metadata ───────────────────────────────────────────────────────
 META="$EXAMPLE_DIR/metadata.json"
-FRAME_COUNT=$(ls "$EXAMPLE_DIR"/frames/*.png 2>/dev/null | wc -l)
+FRAME_COUNT=$(ls "$EXAMPLE_DIR"/frames/*.jpg "$EXAMPLE_DIR"/frames/*.png 2>/dev/null | wc -l)
 
 if [ ! -f "$META" ] || [ "$FRAME_COUNT" -eq 0 ]; then
     echo "[run] Frames or metadata missing, running generate..."
@@ -38,7 +38,24 @@ fi
 # Re-run if either the voxel grid or its companion multicam JSON is absent.
 # The JSON is produced in the same pass, so a missing JSON means the binary
 # that wrote the existing .bin predates the multicam feature.
-if [ ! -f "$EXAMPLE_DIR/voxel_grid.bin" ]; then
+# Initialize FORCE to 0
+FORCE=0
+HEADLESS=0
+
+# Loop through all arguments
+for arg in "$@"; do
+    if [ "$arg" = "--force" ]; then
+        FORCE=1
+    fi
+
+    if [ "$arg" = "--headless" ]; then
+        HEADLESS=1
+    fi
+done
+
+echo $FORCE
+
+if [ "$FORCE" -eq 1 ] || [ ! -f "$EXAMPLE_DIR/voxel_grid.bin" ]; then
     echo "[run] Running ray_voxel..."
     "$PROJECT_ROOT/build/ray_voxel" "$META" "$EXAMPLE_DIR/frames" "$EXAMPLE_DIR/voxel_grid.bin"
     if [ $? -ne 0 ]; then
@@ -48,4 +65,6 @@ if [ ! -f "$EXAMPLE_DIR/voxel_grid.bin" ]; then
 fi
 
 # ── viewer ───────────────────────────────────────────────────────────────────
-#python src/viewVoxelMotion.py "$EXAMPLE_DIR/voxel_grid.bin"
+if [ "$HEADLESS" -eq 0 ]; then
+    python src/viewVoxelMotion.py "$EXAMPLE_DIR/voxel_grid.bin"
+fi
